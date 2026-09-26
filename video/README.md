@@ -33,7 +33,21 @@ FFMPEG=/path/to/ffmpeg node render.mjs video 1080 1920 corvo-bets-rewards-9x16.m
 node render.mjs stills 1920 1080 ./stills 1.8,5.4,10.4,14.5   # inspect single frames
 ```
 
-## Brand notes
+## Brand
 
-The live site could not be reached from the build environment. The palette is a raven black and gold set taken from the Corvo Bets identity ("corvo" = raven). The offer copy comes from the brand's public posts: "1.000€ em prémios todos os meses" for the Top 10.
-To match exact brand hex values, edit the `P` palette object at the top of `index.html` and re-render. The fonts (Anton, Inter, JetBrains Mono) are under the SIL Open Font License and live in `fonts/`.
+- **Logo**: the official emblem (raven on a football). The original PNG is `brand/logo-original.png`. It is vectorised to `brand/logo.svg` so it stays sharp at any size. The same path is embedded in `index.html` (`LOGO`).
+- **Palette** (`P` object in `index.html`):
+
+| Role | HEX |
+|---|---|
+| Main colour: highlights, numbers, CTA | `#C8F000` lime |
+| Base background | `#0E0934` deep purple |
+| Cards and panels | `#17133C` |
+| Hero / intro background | `#090A10` |
+| Accent ("REWARDS", details) | `#9641FD` violet |
+| Text | `#FFFFFF` |
+| CTA text | `#0A0A0F` |
+| Panel outlines | `#2F2B50` |
+
+- **Website motifs** carried into the video: green light halos, lime particles, and a lit pedestal under the emblem.
+- **Fonts**: Anton, Inter and JetBrains Mono (SIL Open Font License), in `fonts/`.
