@@ -890,12 +890,12 @@ function S3(t) {
   c.save(); c.translate(cx, cy); c.scale(1 + z * .55, 1 + z * .55); c.translate(-cx, -cy);
   drawDashboard(t, { a, hist: t >= 10.75 });
   c.restore();
-  kLine(Wd('Registo.'), 130, 180, 88, t, 11.0, 13.4);
+  kLine(Wd('Registo.'), 130, 180, 88, t, 11.0, 13.3);
   const w1 = tw('Registo. ', 88, HEAD, 700);
-  kLine(Wd('Saldo.'), 130 + w1, 180, 88, t, 11.6, 13.45);
+  kLine(Wd('Saldo.'), 130 + w1, 180, 88, t, 11.6, 13.34);
   const w2 = tw('Registo. Saldo. ', 88, HEAD, 700);
-  kLine(Wd('*Análise.*'), 130 + w2, 180, 88, t, 12.2, 13.5);
-  kLine(Wd('Tudo numa *única* *visão.*'), 130, 180, 88, t, 13.65, 15.3);
+  kLine(Wd('*Análise.*'), 130 + w2, 180, 88, t, 12.2, 13.38);
+  kLine(Wd('Tudo numa *única* *visão.*'), 130, 180, 88, t, 13.82, 15.3);
 }
 
 /* =====================================================================
@@ -999,10 +999,10 @@ function S4(t) {
   }
   // copy (left)
   text('INTELIGÊNCIA', 130, 400, 20, { w: 700, col: P.label, ls: 4, a: pulse(t, 16.5, 21.6, .3) });
-  kLine(Wd('Descobre'), 130, 510, 100, t, 16.6, 17.95);
-  kLine(Wd('onde *ganhas.*'), 130, 622, 100, t, 16.7, 18.0);
-  kLine(Wd('Percebe'), 130, 510, 100, t, 18.15, 21.4);
-  kLine(Wd('onde *perdes.*'), 130, 622, 100, t, 18.25, 21.45);
+  kLine(Wd('Descobre'), 130, 510, 100, t, 16.6, 17.8);
+  kLine(Wd('onde *ganhas.*'), 130, 622, 100, t, 16.7, 17.84);
+  kLine(Wd('Percebe'), 130, 510, 100, t, 18.26, 21.4);
+  kLine(Wd('onde *perdes.*'), 130, 622, 100, t, 18.34, 21.45);
   // closing line
   const sc = pulse(t, 21.7, 23.9, .5);
   if (sc > 0) { c.save(); c.globalAlpha = sc * .85; const g2 = c.createRadialGradient(960, 560, 0, 960, 560, 900); g2.addColorStop(0, 'rgba(13,17,32,.95)'); g2.addColorStop(1, 'rgba(13,17,32,0)'); c.fillStyle = g2; c.fillRect(0, 0, W, H); c.restore(); }
