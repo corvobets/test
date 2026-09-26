@@ -1,0 +1,1120 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BankFlow — 30s</title>
+<style>
+  @font-face { font-family: 'Space Grotesk'; src: url(fonts/spacegrotesk.woff2) format('woff2'); font-weight: 300 700; }
+  @font-face { font-family: 'Inter'; src: url(fonts/inter.woff2) format('woff2'); font-weight: 100 900; }
+  html, body { margin: 0; background: #0D1120; height: 100%; }
+  body { display: grid; place-items: center; }
+  canvas { display: block; max-width: 100vw; max-height: 100vh; }
+  body.render canvas { max-width: none; max-height: none; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<script>
+/* =====================================================================
+   BANKFLOW — 30s product film · 1920×1080 · 60 fps
+   renderFrame(t) draws the frame at time t (seconds). Deterministic.
+   ?render  headless render mode   ?sub=3  motion-blur subsamples
+   ===================================================================== */
+const Q = new URLSearchParams(location.search);
+const W = 1920, H = 1080, FPS = 60, DUR = 30;
+const SUB = +(Q.get('sub') || 3), SHUTTER = 0.5;
+const RENDER = Q.has('render');
+if (RENDER) document.body.classList.add('render');
+
+const cv = document.getElementById('cv'); cv.width = W; cv.height = H;
+const out = cv.getContext('2d');
+const mk = (w = W, h = H) => { const k = document.createElement('canvas'); k.width = w; k.height = h; return k; };
+const sceneC = mk(), c = sceneC.getContext('2d');
+
+/* ---------- brand ---------- */
+const P = {
+  bg: '#0D1120', bg2: '#101425', card: '#13182B', card2: '#202539',
+  text: '#EEF0FA', mute: '#8B93B0', mute2: '#5E6683', line: 'rgba(238,240,250,0.08)', line2: 'rgba(238,240,250,0.14)',
+  blue: '#2E9EE6', teal: '#14D7C4', violet: '#8B5CF6',
+  cta1: '#5855E8', cta2: '#783DEC',
+  pos: '#35D581', neg: '#FF4567',
+  label: '#8E8CF8',
+  // imported content (not brand colours)
+  slipOrange: '#F3511D', slipBody: '#151A26', slipRow: '#1E2433', slipChip: '#343A4F', slipGreen: '#37B45E',
+  tg: '#2AABEE', tgOut: '#2B5278', tgIn: '#1F2B3B', xl: '#107C41', xlSel: '#21A366',
+};
+const HEAD = '"Space Grotesk"', UI = '"Inter"';
+const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+
+/* ---------- math ---------- */
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, t) => a + (b - a) * t;
+const eOutExpo = x => x >= 1 ? 1 : 1 - Math.pow(2, -10 * x);
+const eInExpo = x => x <= 0 ? 0 : Math.pow(2, 10 * x - 10);
+const eOutCubic = x => 1 - Math.pow(1 - x, 3);
+const eInCubic = x => x * x * x;
+const eInOutCubic = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const eInOutSine = x => -(Math.cos(Math.PI * x) - 1) / 2;
+const eOutQuart = x => 1 - Math.pow(1 - x, 4);
+const eOutBack = (x, s = 1.4) => x <= 0 ? 0 : 1 + (s + 1) * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2);
+const pulse = (t, a, b, fade = .25) => Math.min(eOutCubic(prog(t, a, a + fade)), 1 - eInCubic(prog(t, b - fade, b)));
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const lerpRect = (a, b, p) => ({ x: lerp(a.x, b.x, p), y: lerp(a.y, b.y, p), w: lerp(a.w, b.w, p), h: lerp(a.h, b.h, p) });
+// keyframed value: [[t, v], ...] with eased segments
+function kf(t, keys, ease = eInOutCubic) {
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) if (t <= keys[i][0]) {
+    const [t0, v0] = keys[i - 1], [t1, v1] = keys[i];
+    return lerp(v0, v1, ease(prog(t, t0, t1)));
+  }
+  return keys[keys.length - 1][1];
+}
+
+/* ---------- drawing helpers ---------- */
+function reset(ctx = c) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.shadowBlur = 0; ctx.shadowColor = 'transparent'; ctx.letterSpacing = '0px'; ctx.setLineDash([]);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.filter = 'none';
+}
+function font(size, fam = UI, w = 500) { c.font = `${w} ${size}px ${fam}, "Inter", sans-serif`; }
+function tw(s, size, fam = UI, w = 500, ls = 0) { font(size, fam, w); c.letterSpacing = ls + 'px'; const m = c.measureText(s).width; c.letterSpacing = '0px'; return m; }
+function text(s, x, y, size, o = {}) {
+  const { fam = UI, w = 500, col = P.text, align = 'left', ls = 0, a = 1 } = o;
+  if (a <= 0) return;
+  font(size, fam, w); c.letterSpacing = ls + 'px'; c.textAlign = align; c.fillStyle = col;
+  const ga = c.globalAlpha; c.globalAlpha = ga * a;
+  c.fillText(s, align === 'center' ? x + ls / 2 : x, y);
+  c.globalAlpha = ga; c.letterSpacing = '0px'; c.textAlign = 'left';
+}
+function rr(x, y, w, h, r) { c.beginPath(); c.roundRect(x, y, w, h, r); }
+function brandGrad(x0, x1, y = 0) {
+  const g = c.createLinearGradient(x0, y, x1, y);
+  g.addColorStop(0, P.blue); g.addColorStop(.5, P.teal); g.addColorStop(1, P.violet); return g;
+}
+function ctaGrad(x0, x1) { const g = c.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, P.cta1); g.addColorStop(1, P.cta2); return g; }
+function panel(x, y, w, h, o = {}) {
+  const { r = 22, fill = P.card, stroke = P.line, a = 1, shadow = true } = o;
+  if (a <= 0) return;
+  c.save(); c.globalAlpha *= a;
+  if (shadow) { c.shadowColor = 'rgba(0,0,0,.45)'; c.shadowBlur = 50; c.shadowOffsetY = 18; }
+  c.fillStyle = fill; rr(x, y, w, h, r); c.fill();
+  c.shadowBlur = 0; c.shadowOffsetY = 0;
+  c.strokeStyle = stroke; c.lineWidth = 1.5; c.stroke();
+  // top sheen
+  const g = c.createLinearGradient(0, y, 0, y + 60); g.addColorStop(0, 'rgba(238,240,250,.045)'); g.addColorStop(1, 'rgba(238,240,250,0)');
+  c.fillStyle = g; rr(x, y, w, Math.min(h, 60), r); c.fill();
+  c.restore();
+}
+function glowStroke(x, y, w, h, r, a) {
+  if (a <= 0) return;
+  c.save(); c.globalAlpha *= a;
+  c.shadowColor = rgba(P.teal, .55); c.shadowBlur = 36;
+  c.strokeStyle = brandGrad(x, x + w); c.lineWidth = 2.5; rr(x, y, w, h, r); c.stroke();
+  c.restore();
+}
+function chip(x, y, label, o = {}) {
+  const { size = 20, h = 40, fill = P.card2, stroke = P.line2, col = P.text, w = 600, pad = 16, icon = null, a = 1 } = o;
+  const iw = icon ? size * 1.1 : 0;
+  const cw = tw(label, size, UI, w) + pad * 2 + iw;
+  if (a > 0) {
+    c.save(); c.globalAlpha *= a;
+    c.fillStyle = fill; rr(x, y, cw, h, h / 2 < 14 ? h / 2 : 12); c.fill();
+    c.strokeStyle = stroke; c.lineWidth = 1.2; c.stroke();
+    if (icon) icon(x + pad + size * .4, y + h / 2, size * .8, col);
+    text(label, x + pad + iw, y + h / 2 + size * .36, size, { w, col });
+    c.restore();
+  }
+  return cw;
+}
+
+/* ---------- icons ---------- */
+function icCheck(x, y, r, col = P.pos) {
+  c.save(); c.fillStyle = rgba(col, .16); c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+  c.strokeStyle = col; c.lineWidth = r * .16; c.beginPath(); c.moveTo(x - r * .4, y + r * .02); c.lineTo(x - r * .1, y + r * .32); c.lineTo(x + r * .45, y - r * .3); c.stroke(); c.restore();
+}
+function icArrow(x, y, s, col) {
+  c.save(); c.strokeStyle = col; c.lineWidth = s * .13; c.beginPath();
+  c.moveTo(x - s * .45, y); c.lineTo(x + s * .4, y); c.moveTo(x + s * .05, y - s * .35); c.lineTo(x + s * .42, y); c.lineTo(x + s * .05, y + s * .35); c.stroke(); c.restore();
+}
+function icReceipt(x, y, s, col) {
+  c.save(); c.strokeStyle = col; c.lineWidth = s * .09;
+  rr(x - s * .32, y - s * .42, s * .64, s * .84, s * .1); c.stroke();
+  c.beginPath(); for (const k of [-.15, .05, .25]) { c.moveTo(x - s * .16, y + k * s); c.lineTo(x + s * .16, y + k * s); } c.stroke(); c.restore();
+}
+function icPlane(x, y, s, col = '#fff') {
+  c.save(); c.fillStyle = col; c.beginPath();
+  c.moveTo(x - s * .42, y - s * .02); c.lineTo(x + s * .4, y - s * .36); c.lineTo(x + s * .22, y + s * .38); c.lineTo(x + s * .02, y + s * .12);
+  c.lineTo(x + s * .26, y - s * .18); c.lineTo(x - s * .06, y + s * .06); c.closePath(); c.fill(); c.restore();
+}
+function icLive(x, y, s, col) {
+  c.save(); c.strokeStyle = col; c.fillStyle = col; c.lineWidth = s * .1;
+  c.beginPath(); c.arc(x, y, s * .1, 0, 7); c.fill();
+  for (const r of [.28, .46]) { c.beginPath(); c.arc(x, y, s * r, -0.8, 0.8); c.stroke(); c.beginPath(); c.arc(x, y, s * r, Math.PI - .8, Math.PI + .8); c.stroke(); }
+  c.restore();
+}
+function icSpark(x, y, s, col) {
+  c.save(); c.fillStyle = col; c.beginPath();
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, r = i % 2 ? s * .12 : s * .5; c.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); }
+  c.closePath(); c.fill();
+  c.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, r = i % 2 ? s * .05 : s * .2; c.lineTo(x + s * .42 + Math.cos(a) * r, y - s * .38 + Math.sin(a) * r); } c.closePath(); c.fill();
+  c.restore();
+}
+function icClock(x, y, s, col) {
+  c.save(); c.strokeStyle = col; c.lineWidth = s * .1; c.beginPath(); c.arc(x, y, s * .4, 0, 7); c.stroke();
+  c.beginPath(); c.moveTo(x, y - s * .22); c.lineTo(x, y); c.lineTo(x + s * .16, y + s * .1); c.stroke(); c.restore();
+}
+function icTrend(x, y, s, col) {
+  c.save(); c.strokeStyle = col; c.lineWidth = s * .11; c.beginPath();
+  c.moveTo(x - s * .45, y + s * .25); c.lineTo(x - s * .1, y - s * .08); c.lineTo(x + s * .08, y + s * .1); c.lineTo(x + s * .45, y - s * .28);
+  c.moveTo(x + s * .18, y - s * .3); c.lineTo(x + s * .45, y - s * .28); c.lineTo(x + s * .43, y - s * .02); c.stroke(); c.restore();
+}
+function icInfo(x, y, s, col) {
+  c.save(); c.strokeStyle = col; c.fillStyle = col; c.lineWidth = s * .09; c.beginPath(); c.arc(x, y, s * .42, 0, 7); c.stroke();
+  c.fillRect(x - s * .045, y - s * .05, s * .09, s * .28); c.beginPath(); c.arc(x, y - s * .2, s * .06, 0, 7); c.fill(); c.restore();
+}
+function icLayers(x, y, s, col) {
+  c.save(); c.strokeStyle = col; c.lineWidth = s * .09;
+  for (const dy of [-.18, 0, .18]) { c.beginPath(); c.moveTo(x - s * .42, y + dy * s); c.lineTo(x, y + dy * s - s * .18); c.lineTo(x + s * .42, y + dy * s); c.lineTo(x, y + dy * s + s * .18); c.closePath(); if (dy < 0) c.stroke(); else { c.beginPath(); c.moveTo(x - s * .42, y + dy * s); c.lineTo(x, y + dy * s + s * .18); c.lineTo(x + s * .42, y + dy * s); c.stroke(); } }
+  c.restore();
+}
+
+/* ---------- kinetic type ---------- */
+// words: [{t, g}] ; g = brand-gradient word
+function kLine(words, x, y, size, t, tIn, tOut = null, o = {}) {
+  const { align = 'left', fam = HEAD, w = 700, stagger = .055, dur = .75, col = P.text, a = 1 } = o;
+  font(size, fam, w);
+  const sp = c.measureText(' ').width;
+  let cx = 0; const items = words.map(wd => { const ww = c.measureText(wd.t).width; const it = { ...wd, x: cx, w: ww }; cx += ww + sp; return it; });
+  const total = cx - sp, x0 = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;
+  const gs = items.filter(i => i.g);
+  const grad = gs.length ? brandGrad(x0 + gs[0].x, x0 + gs[gs.length - 1].x + gs[gs.length - 1].w) : null;
+  c.save(); c.globalAlpha *= a;
+  c.beginPath(); c.rect(x0 - 30, y - size * 1.02, total + 60, size * 1.34); c.clip();
+  items.forEach((it, i) => {
+    const pin = eOutExpo(prog(t, tIn + i * stagger, tIn + i * stagger + dur));
+    const pout = tOut == null ? 0 : eInCubic(prog(t, tOut + i * stagger * .6, tOut + i * stagger * .6 + .38));
+    if (pin <= 0 || pout >= 1) return;
+    const dy = (1 - pin) * size * 1.1 - pout * size * 1.15;
+    c.fillStyle = it.g ? grad : (it.c || col);
+    c.fillText(it.t, x0 + it.x, y + dy);
+  });
+  c.restore();
+  return total;
+}
+const Wd = s => s.split(' ').map(t => ({ t: t.replace(/\*/g, ''), g: t.includes('*') }));
+
+/* =====================================================================
+   DATA (illustrative)
+   ===================================================================== */
+const eur = v => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(2).replace('.', ',') + ' €';
+function bet(m, k, o, s, st, src) { const r = st > 0 ? eur(s * (o - 1)) : st < 0 ? eur(-s) : 'Pendente'; return { m, k, o: o.toFixed(2), s: s + ' €', r, st, src }; }
+const HISTORY = [
+  bet('Santa Clara Sub-23 + CA Lanús', 'Múltipla · 2 linhas', 3.15, 10, 0, 'Print · IA'),
+  bet('Benfica – Porto', 'Resultado final · Benfica', 1.85, 10, 1, 'Telegram'),
+  bet('Real Madrid – Sevilha', 'Mais de 2.5 golos', 1.72, 15, 1, 'Excel'),
+  bet('Arsenal – Chelsea', 'Ambas marcam', 1.95, 10, -1, 'Telegram'),
+  bet('Sporting – Braga', 'Resultado final · Sporting', 1.66, 12, 1, 'Print · IA'),
+  bet('Inter – Milan', 'Menos de 2.5 golos', 2.05, 10, -1, 'Excel'),
+  bet('Liverpool – Man. City', 'Ambas marcam', 1.62, 10, 1, 'Telegram'),
+];
+// batch imports (Telegram / Excel)
+const BATCHES = [
+  { src: 'Telegram', t: 7.55, rows: [bet('Benfica – Porto', 'Resultado final · Benfica', 1.85, 10, 1, 'Telegram'), bet('Arsenal – Chelsea', 'Ambas marcam', 1.95, 10, -1, 'Telegram'), bet('Liverpool – Man. City', 'Ambas marcam', 1.62, 10, 1, 'Telegram'), bet('Ajax – PSV', 'Mais de 2.5 golos', 1.58, 20, 1, 'Telegram')] },
+  { src: 'Excel', t: 8.2, rows: [bet('Real Madrid – Sevilha', 'Mais de 2.5 golos', 1.72, 15, 1, 'Excel'), bet('Inter – Milan', 'Menos de 2.5 golos', 2.05, 10, -1, 'Excel'), bet('Sporting – Braga', 'Resultado final · Sporting', 1.66, 12, 1, 'Excel'), bet('Napoli – Roma', 'Dupla hipótese 1X', 1.40, 25, 1, 'Excel')] },
+  { src: 'Telegram', t: 8.85, rows: [bet('FC Porto – Vitória SC', 'Handicap −1', 2.20, 8, 1, 'Telegram'), bet('Bayern – Dortmund', 'Ambas marcam', 1.55, 10, -1, 'Telegram'), bet('Atlético – Betis', 'Menos de 3.5 golos', 1.45, 20, 1, 'Telegram'), bet('PSG – Lyon', 'Resultado final · PSG', 1.50, 15, 1, 'Telegram')] },
+  { src: 'Excel', t: 9.45, rows: [bet('Celtic – Rangers', 'Ambas marcam', 1.70, 10, 1, 'Excel'), bet('Juventus – Lazio', 'Mais de 1.5 golos', 1.33, 30, 1, 'Excel'), bet('Braga – Guimarães', 'Resultado final · Braga', 2.10, 10, -1, 'Excel'), bet('Man. United – Spurs', 'Ambas marcam', 1.65, 10, 1, 'Excel')] },
+];
+const TG_MSGS = [
+  'Benfica – Porto · Benfica @1.85 · 10€', 'Arsenal – Chelsea · BTTS @1.95 · 10€', 'Liverpool – Man. City · BTTS @1.62 · 10€', 'Ajax – PSV · +2.5 @1.58 · 20€',
+  'FC Porto – Vitória SC · HC −1 @2.20 · 8€', 'Bayern – Dortmund · BTTS @1.55 · 10€', 'Atlético – Betis · −3.5 @1.45 · 20€', 'PSG – Lyon · PSG @1.50 · 15€',
+];
+const XL_ROWS = [
+  ['14/09', 'Real Madrid – Sevilha', '+2.5', '1.72', '15'], ['14/09', 'Inter – Milan', '−2.5', '2.05', '10'], ['15/09', 'Sporting – Braga', '1', '1.66', '12'], ['15/09', 'Napoli – Roma', '1X', '1.40', '25'],
+  ['16/09', 'Celtic – Rangers', 'BTTS', '1.70', '10'], ['16/09', 'Juventus – Lazio', '+1.5', '1.33', '30'], ['17/09', 'Braga – Guimarães', '1', '2.10', '10'], ['17/09', 'Man. United – Spurs', 'BTTS', '1.65', '10'],
+];
+// bankroll evolution (24 days): 1 000 € → 1 240 €, with realistic dips
+const BANK = [1000, 1012, 1004, 1031, 1022, 1049, 1040, 1066, 1051, 1038, 1070, 1094, 1083, 1111, 1101, 1133, 1126, 1152, 1137, 1171, 1192, 1180, 1214, 1240];
+
+/* =====================================================================
+   COMPONENTS
+   ===================================================================== */
+const srcCol = s => s === 'Telegram' ? P.tg : s === 'Excel' ? P.xlSel : P.violet;
+// one bet row (native width w, height h)
+function drawRow(r, x, y, w, h, o = {}) {
+  const { a = 1, flash = 0, fill = 'rgba(32,37,57,.72)' } = o;
+  if (a <= 0) return;
+  c.save(); c.globalAlpha *= a;
+  c.fillStyle = fill; rr(x, y, w, h, 14); c.fill();
+  c.strokeStyle = flash > 0 ? rgba(P.teal, .25 + .5 * flash) : P.line; c.lineWidth = 1.2 + flash; c.stroke();
+  if (flash > 0) { c.fillStyle = rgba(P.teal, .08 * flash); c.fill(); }
+  const cy = y + h / 2, dc = r.st > 0 ? P.pos : r.st < 0 ? P.neg : P.mute;
+  c.fillStyle = dc; c.beginPath(); c.arc(x + 26, cy, 6, 0, 7); c.fill();
+  c.fillStyle = rgba(dc, .2); c.beginPath(); c.arc(x + 26, cy, 11, 0, 7); c.fill();
+  text(r.m, x + 50, cy - 5, 21, { w: 600 });
+  text(r.k, x + 50, cy + 21, 16, { col: P.mute });
+  if (r.src) {
+    const kx = x + 50 + tw(r.k, 16) + 12, sc = srcCol(r.src);
+    const sw = tw(r.src, 13, UI, 700) + 16;
+    c.fillStyle = rgba(sc, .16); rr(kx, cy + 7, sw, 20, 10); c.fill();
+    text(r.src, kx + 8, cy + 21.5, 13, { w: 700, col: sc });
+  }
+  text(r.o, x + w - 280, cy + 7, 21, { fam: HEAD, w: 600, align: 'right' });
+  text(r.s, x + w - 172, cy + 7, 19, { col: P.mute, align: 'right' });
+  if (r.st === 0) { chip(x + w - 136, cy - 16, 'Pendente', { size: 15, h: 32, pad: 12, col: P.mute, icon: icClock }); }
+  else text(r.r, x + w - 22, cy + 7, 21, { fam: HEAD, w: 700, col: r.st > 0 ? P.pos : P.neg, align: 'right' });
+  c.restore();
+}
+// betting slip (imported content) — native 620 × 790
+const SLW = 620, SLH = 790;
+const SLIP_F = {   // detectable fields (native coords)
+  sel1: { x: 70, y: 208, w: 330, h: 128, tag: 'SELEÇÃO' }, odd1: { x: 462, y: 208, w: 120, h: 68, tag: 'ODD' },
+  sel2: { x: 70, y: 374, w: 330, h: 128, tag: 'SELEÇÃO' }, odd2: { x: 462, y: 374, w: 120, h: 68, tag: 'ODD' },
+  tot: { x: 440, y: 548, w: 150, h: 60, tag: 'ODD TOTAL' }, stake: { x: 400, y: 636, w: 190, h: 60, tag: 'STAKE' },
+};
+function drawSlip(a = 1) {
+  if (a <= 0) return;
+  c.save(); c.globalAlpha *= a;
+  c.shadowColor = 'rgba(0,0,0,.5)'; c.shadowBlur = 60; c.shadowOffsetY = 24;
+  c.fillStyle = P.slipBody; rr(0, 0, SLW, SLH, 30); c.fill(); c.shadowBlur = 0; c.shadowOffsetY = 0;
+  c.save(); rr(0, 0, SLW, SLH, 30); c.clip();
+  c.fillStyle = P.slipOrange; c.fillRect(0, 0, SLW, 100);
+  c.restore();
+  c.fillStyle = 'rgba(255,255,255,.2)'; rr(26, 22, 56, 56, 14); c.fill();
+  icReceipt(54, 50, 34, '#fff');
+  c.fillStyle = '#2A1A14'; c.beginPath(); c.arc(80, 24, 13, 0, 7); c.fill();
+  text('2', 80, 30, 16, { w: 700, col: '#fff', align: 'center' });
+  text('3.15', 100, 66, 44, { fam: HEAD, w: 700, col: '#fff' });
+  c.strokeStyle = '#fff'; c.lineWidth = 3.5; c.beginPath(); c.moveTo(566, 56); c.lineTo(578, 44); c.lineTo(590, 56); c.stroke();
+  text('Boletim de apostas', 30, 150, 29, { w: 700 });
+  chip(528, 124, '2/30', { size: 18, h: 36, pad: 12, fill: '#262C3D', stroke: 'transparent' });
+  c.strokeStyle = brandGrad(30, 590); c.lineWidth = 2.5; c.beginPath(); c.moveTo(30, 174); c.lineTo(500, 174); c.stroke();
+  const sel = (y, name, match, odd) => {
+    c.fillStyle = P.slipRow; rr(24, y, 572, 150, 18); c.fill();
+    c.fillStyle = '#3A4153'; c.beginPath(); c.arc(56, y + 42, 11, 0, 7); c.fill();
+    text(name, 80, y + 52, 29, { w: 700 });
+    text('Resultado final', 80, y + 88, 21, { col: P.mute });
+    text(match, 80, y + 126, 23, { w: 500, col: '#D5D9E8' });
+    c.fillStyle = P.slipChip; rr(470, y + 18, 104, 54, 12); c.fill();
+    text(odd, 522, y + 54, 27, { w: 700, align: 'center' });
+  };
+  sel(196, 'Santa Clara Sub-23', 'Santa Clara - Portimonense', '1.52');
+  sel(362, 'CA Lanús', 'CA Lanús - Estudiantes', '2.07');
+  c.fillStyle = P.slipRow; rr(24, 540, 572, 76, 16); c.fill();
+  text('Odd total', 48, 588, 24, { w: 600 });
+  text('3.15', 572, 590, 32, { fam: HEAD, w: 700, align: 'right' });
+  c.fillStyle = P.slipRow; rr(24, 628, 572, 76, 16); c.fill();
+  text('Valor da aposta', 48, 676, 22, { col: P.mute });
+  text('10,00 €', 572, 677, 28, { fam: HEAD, w: 700, align: 'right' });
+  c.fillStyle = P.slipGreen; rr(24, 716, 572, 56, 16); c.fill();
+  text('Apostar 10,00 €', SLW / 2, 752, 23, { w: 700, col: '#fff', align: 'center' });
+  c.restore();
+}
+function drawMiniSlip(odd, a) {   // 300 × 170
+  c.save(); c.globalAlpha *= a;
+  c.fillStyle = P.slipBody; rr(0, 0, 300, 170, 18); c.fill();
+  c.save(); rr(0, 0, 300, 170, 18); c.clip(); c.fillStyle = P.slipOrange; c.fillRect(0, 0, 300, 50); c.restore();
+  icReceipt(28, 25, 22, '#fff'); text(odd, 50, 35, 24, { fam: HEAD, w: 700, col: '#fff' });
+  c.fillStyle = P.slipRow; rr(12, 62, 276, 44, 10); c.fill(); rr(12, 114, 276, 44, 10); c.fill();
+  c.fillStyle = '#3A4153'; rr(26, 76, 140, 8, 4); c.fill(); rr(26, 128, 110, 8, 4); c.fill();
+  c.fillStyle = P.slipChip; rr(230, 70, 48, 28, 7); c.fill(); rr(230, 122, 48, 28, 7); c.fill();
+  c.restore();
+}
+function drawTgBubble(msg, w, h, a, o = {}) {
+  const { hl = 0 } = o;
+  c.save(); c.globalAlpha *= a;
+  c.fillStyle = P.tgOut; rr(0, 0, w, h, [16, 16, 4, 16]); c.fill();
+  if (hl > 0) { c.strokeStyle = rgba(P.teal, hl); c.lineWidth = 2; c.stroke(); }
+  text(msg, 16, h / 2 + 6, 17, { w: 500, col: '#fff' });
+  c.restore();
+}
+const XL_COLS = [0, 80, 330, 420, 490];
+function drawXlRow(cells, w, h, a, o = {}) {
+  const { hl = 0, fill = '#1A1F2E' } = o;
+  c.save(); c.globalAlpha *= a;
+  c.fillStyle = fill; c.fillRect(0, 0, w, h);
+  c.strokeStyle = '#2B3247'; c.lineWidth = 1; c.strokeRect(0, 0, w, h);
+  for (const cx of XL_COLS.slice(1)) { c.beginPath(); c.moveTo(cx * w / 560, 0); c.lineTo(cx * w / 560, h); c.stroke(); }
+  cells.forEach((v, i) => text(v, XL_COLS[i] * w / 560 + 10, h / 2 + 6, 16, { col: i === 1 ? '#E4E7F2' : '#AEB4C8', w: i === 1 ? 600 : 500 }));
+  if (hl > 0) { c.strokeStyle = rgba(P.xlSel, hl); c.lineWidth = 3; c.strokeRect(1, 1, w - 2, h - 2); }
+  c.restore();
+}
+
+/* ---------- logo ---------- */
+const LOGO = new Image(); LOGO.src = 'brand/logo.png';
+const LOGO_W = 1877, LOGO_H = 293;
+const LOGO_SEG = [[10, 280], [297, 526], [541, 762], [778, 1012], [1034, 1255], [1268, 1334], [1346, 1868]];
+function drawLogo(cx, cy, w, t0, t, a = 1) {
+  const s = w / LOGO_W, h = LOGO_H * s, x0 = cx - w / 2, y0 = cy - h / 2;
+  c.save(); c.globalAlpha *= a;
+  LOGO_SEG.forEach(([sx, ex], i) => {
+    const st = t0 + i * .06;
+    const last = i === LOGO_SEG.length - 1;
+    const p = eOutExpo(prog(t, st, st + .7));
+    if (p <= 0) return;
+    const pad = 6;
+    c.save();
+    if (last) {    // "ow" + arrow: drawn on left → right
+      const wp = eInOutCubic(prog(t, st, st + .75));
+      c.beginPath(); c.rect(x0 + (sx - pad) * s, y0 - 20, (ex - sx + pad * 2) * s * wp, h + 40); c.clip();
+      c.drawImage(LOGO, sx - pad, 0, ex - sx + pad * 2, LOGO_H, x0 + (sx - pad) * s, y0, (ex - sx + pad * 2) * s, h);
+    } else {
+      c.globalAlpha *= clamp(p * 1.3);
+      const dy = (1 - p) * h * .6;
+      c.drawImage(LOGO, sx - pad, 0, ex - sx + pad * 2, LOGO_H, x0 + (sx - pad) * s, y0 + dy, (ex - sx + pad * 2) * s, h);
+    }
+    c.restore();
+  });
+  c.restore();
+}
+
+/* =====================================================================
+   BACKGROUND: grid + soft light (continuous camera)
+   ===================================================================== */
+const GRID = (() => {
+  const g = mk(W * 2, H * 2), x = g.getContext('2d');
+  x.strokeStyle = 'rgba(238,240,250,0.045)'; x.lineWidth = 1;
+  for (let i = 0; i <= W * 2; i += 80) { x.beginPath(); x.moveTo(i + .5, 0); x.lineTo(i + .5, H * 2); x.stroke(); }
+  for (let j = 0; j <= H * 2; j += 80) { x.beginPath(); x.moveTo(0, j + .5); x.lineTo(W * 2, j + .5); x.stroke(); }
+  return g;
+})();
+function background(t) {
+  const tt = Math.min(t, 27.3);
+  c.fillStyle = P.bg; c.fillRect(0, 0, W, H);
+  const s = kf(t, [[0, 1.0], [3.2, 1.04], [4.1, 1.16], [9.9, 1.2], [10.9, 1.0], [15.4, 1.03], [16.4, 1.16], [23.6, 1.2], [24.6, .92], [26.5, 1.0]]);
+  const ox = kf(t, [[0, 0], [4, -60], [10, -140], [16, -220], [24, -300], [27, -320]]) + tt * -6;
+  const oy = kf(t, [[0, 0], [10, -40], [16, 20], [24, 0]]);
+  c.save(); c.translate(W / 2, H / 2); c.scale(s, s);
+  const gx = ((ox % 80) + 80) % 80, gy = ((oy % 80) + 80) % 80;
+  c.drawImage(GRID, -W + gx, -H + gy);
+  c.restore();
+  // soft lights
+  const L = (x, y, r, col, a) => { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, rgba(col, a)); g.addColorStop(1, rgba(col, 0)); c.fillStyle = g; c.fillRect(0, 0, W, H); };
+  const ax = kf(t, [[0, 700], [4, 1350], [10, 1300], [16, 1250], [24, 960], [26, 960]]), ay = kf(t, [[0, 420], [4, 400], [10, 520], [16, 480], [24, 360], [26, 380]]);
+  const bx = kf(t, [[0, 1300], [4, 500], [10, 600], [16, 500], [24, 960], [26, 960]]), by = kf(t, [[0, 700], [4, 700], [10, 800], [16, 700], [24, 700], [26, 760]]);
+  L(ax + Math.sin(tt * .4) * 40, ay, 760, P.blue, .13);
+  L(bx + Math.cos(tt * .35) * 40, by, 820, P.violet, .12);
+  // edge fade (vignette to bg)
+  const v = c.createRadialGradient(W / 2, H / 2, 380, W / 2, H / 2, 1150);
+  v.addColorStop(0, 'rgba(13,17,32,0)'); v.addColorStop(1, 'rgba(8,10,20,.78)');
+  c.fillStyle = v; c.fillRect(0, 0, W, H);
+}
+
+/* =====================================================================
+   SCENE 1 · 0–4 s · THE HOOK
+   ===================================================================== */
+const HK = { x: 980, y: 150, w: 820, h: 790 };
+const HK_ROW = i => ({ x: HK.x + 20, y: HK.y + 130 + i * 88, w: HK.w - 40, h: 78 });
+const ITEMS = [
+  { k: 'slip', v: '3.15', x: 1450, y: 250, r: -8, z: 1.0, to: 0 },
+  { k: 'tg', v: TG_MSGS[0], x: 430, y: 230, r: 5, z: .92, to: 1 },
+  { k: 'xl', v: XL_ROWS[0], x: 1330, y: 870, r: 4, z: .95, to: 2 },
+  { k: 'tg', v: TG_MSGS[1], x: 560, y: 880, r: -6, z: 1.0, to: 3 },
+  { k: 'slip', v: '1.66', x: 250, y: 560, r: 9, z: .78, to: 4 },
+  { k: 'xl', v: XL_ROWS[1], x: 1690, y: 570, r: -4, z: .8, to: 5 },
+  { k: 'tg', v: TG_MSGS[2], x: 950, y: 140, r: 2, z: .74, to: 6 },
+  { k: 'slip', v: '2.20', x: 1000, y: 960, r: -3, z: .7, to: -1 },
+  { k: 'xl', v: XL_ROWS[4], x: 190, y: 930, r: 6, z: .62, to: -1 },
+  { k: 'tg', v: TG_MSGS[5], x: 1740, y: 170, r: -7, z: .62, to: -1 },
+];
+const ITEM_SIZE = { slip: [300, 170], tg: [470, 64], xl: [560, 52] };
+function drawItem(it, a, hl = 0) {
+  const [w, h] = ITEM_SIZE[it.k];
+  c.translate(-w / 2, -h / 2);
+  if (it.k === 'slip') drawMiniSlip(it.v, a);
+  else if (it.k === 'tg') drawTgBubble(it.v, w, h, a, { hl });
+  else drawXlRow(it.v, w, h, a, { hl });
+}
+function S1(t) {
+  // organise: 1.75 → 3.0 ; zoom into row 0: 3.2 → 4.1
+  const zoom = eInCubic(prog(t, 3.15, 4.0));
+  const r0 = HK_ROW(0), zc = { x: r0.x + r0.w / 2, y: r0.y + r0.h / 2 };
+  const fadeOthers = 1 - prog(t, 3.3, 3.75);
+
+  // panel chrome
+  const pc = eOutExpo(prog(t, 1.95, 2.7));
+  c.save();
+  c.translate(zc.x, zc.y); c.scale(1 + zoom * 1.6, 1 + zoom * 1.6); c.translate(-zc.x, -zc.y);
+  if (pc > 0) {
+    c.save(); c.globalAlpha = fadeOthers;
+    const s = lerp(.94, 1, pc);
+    c.translate(HK.x + HK.w / 2, HK.y + HK.h / 2); c.scale(s, s); c.translate(-(HK.x + HK.w / 2), -(HK.y + HK.h / 2));
+    panel(HK.x, HK.y, HK.w, HK.h, { a: pc });
+    c.globalAlpha *= pc;
+    drawLogoMark(HK.x + 40, HK.y + 50, 30);
+    text('Histórico de apostas', HK.x + 80, HK.y + 60, 26, { w: 700 });
+    chip(HK.x + HK.w - 170, HK.y + 34, '7 apostas', { size: 16, h: 34, pad: 14, col: P.mute });
+    ['JOGO', 'ODD', 'STAKE', 'RESULTADO'].forEach((l, i) => text(l, [HK.x + 70, HK.x + HK.w - 300, HK.x + HK.w - 192, HK.x + HK.w - 42][i], HK.y + 112, 13, { w: 700, col: P.mute2, ls: 2, align: i ? 'right' : 'left' }));
+    c.restore();
+  }
+  // items
+  ITEMS.forEach((it, i) => {
+    const drift = t * 14 * (i % 2 ? 1 : -1);
+    const bob = Math.sin(t * 1.3 + i) * 8;
+    const zz = it.z * (1 + t * .03);
+    const appear = eOutCubic(prog(t, .05 + i * .04, .7 + i * .04));
+    const fx = it.x + drift, fy = it.y + bob;
+    const st = 1.75 + i * .05;
+    const m = eInOutCubic(prog(t, st, st + .9));
+    // dim items near the headline band
+    const band = 1 - .55 * clamp(1 - Math.abs(fy - 560) / 260) * (1 - prog(t, 1.6, 2.0));
+    const baseA = appear * lerp(.55 + .45 * it.z, 1, m) * band;
+    if (it.to < 0) {
+      const fa = baseA * (1 - prog(t, 1.8, 2.3));
+      if (fa <= 0) return;
+      c.save(); c.globalAlpha = fadeOthers; c.translate(fx + (fx - 960) * m * .6, fy + (fy - 540) * m * .6); c.rotate(it.r * Math.PI / 180); c.scale(zz * (1 + m * .3), zz * (1 + m * .3));
+      drawItem(it, fa); c.restore(); return;
+    }
+    const [iw, ih] = ITEM_SIZE[it.k];
+    const tr = HK_ROW(it.to);
+    const src = { x: fx - iw * zz / 2, y: fy - ih * zz / 2, w: iw * zz, h: ih * zz };
+    const R = lerpRect(src, tr, m);
+    const rot = it.r * (1 - m) * Math.PI / 180;
+    const xm = prog(m, .4, .85);
+    const isHero = it.to === 0;
+    c.save();
+    if (!isHero) c.globalAlpha = fadeOthers;
+    c.translate(R.x + R.w / 2, R.y + R.h / 2); c.rotate(rot);
+    if (xm < 1) { c.save(); c.scale(R.w / iw, R.h / ih); drawItem(it, baseA * (1 - xm)); c.restore(); }
+    c.translate(-R.w / 2, -R.h / 2);
+    if (xm > 0 && !(isHero && t > 3.15)) drawRow(HISTORY[it.to], 0, 0, R.w, R.h, { a: baseA * xm, flash: pulse(t, st + .75, st + 1.3, .2) });
+    c.restore();
+  });
+  c.restore();
+
+  // hero row → slip
+  if (t > 3.15) {
+    const p = eInOutCubic(prog(t, 3.15, 4.0));
+    const R = lerpRect(r0, SL, p);
+    c.save();
+    const rowA = 1 - prog(t, 3.2, 3.5);
+    if (rowA > 0) drawRow(HISTORY[0], R.x, R.y, R.w, R.h, { a: rowA, fill: `rgba(32,37,57,${.72})` });
+    const sa = prog(t, 3.35, 3.8);
+    if (sa > 0) {
+      c.save(); rr(R.x, R.y, R.w, R.h, lerp(14, 30, p)); c.clip();
+      c.translate(R.x, R.y); c.scale(R.w / SLW, R.w / SLW); drawSlip(sa); c.restore();
+    }
+    c.restore();
+  }
+
+  // headlines
+  const hA = 1;
+  kLine(Wd('A tua banca'), 960, 500, 132, t, .25, 1.55, { align: 'center', a: hA });
+  kLine(Wd('tem uma *história.*'), 960, 648, 132, t, .4, 1.6, { align: 'center', a: hA });
+  kLine(Wd('Percebe o que'), 130, 440, 96, t, 2.25, 3.1);
+  kLine(Wd('os *números*'), 130, 550, 96, t, 2.35, 3.15);
+  kLine(Wd('dizem.'), 130, 660, 96, t, 2.45, 3.2);
+}
+function drawLogoMark(x, y, s) {   // compact mark: arrow from the logo in brand gradient
+  c.save(); c.lineWidth = s * .16; c.strokeStyle = brandGrad(x - s / 2, x + s / 2);
+  c.beginPath(); c.moveTo(x - s * .5, y + s * .25); c.lineTo(x - s * .18, y - s * .12); c.lineTo(x + s * .05, y + s * .12); c.lineTo(x + s * .45, y - s * .35); c.stroke();
+  c.fillStyle = P.violet; c.beginPath(); c.moveTo(x + s * .55, y - s * .45); c.lineTo(x + s * .22, y - s * .4); c.lineTo(x + s * .5, y - s * .12); c.closePath(); c.fill();
+  c.restore();
+}
+
+/* =====================================================================
+   SCENE 2 · 4–10 s · EFFORTLESS IMPORT
+   ===================================================================== */
+const SL = { x: 1110, y: 150, w: SLW, h: SLH };
+const CARD = { x: 950, y: 600, w: 740, h: 262 };
+const fieldRect = f => ({ x: SL.x + f.x, y: SL.y + f.y, w: f.w, h: f.h });
+function brackets(x, y, w, h, p, col) {
+  const L = Math.min(22, w * .3) * p, m = 6 * (1 - p);
+  c.save(); c.strokeStyle = col; c.lineWidth = 3; c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(x - m, y - m + L); c.lineTo(x - m, y - m); c.lineTo(x - m + L, y - m);
+  c.moveTo(x + w + m - L, y - m); c.lineTo(x + w + m, y - m); c.lineTo(x + w + m, y - m + L);
+  c.moveTo(x + w + m, y + h + m - L); c.lineTo(x + w + m, y + h + m); c.lineTo(x + w + m - L, y + h + m);
+  c.moveTo(x - m + L, y + h + m); c.lineTo(x - m, y + h + m); c.lineTo(x - m, y + h + m - L);
+  c.stroke(); c.fillStyle = rgba(P.teal, .07 * p); c.fillRect(x, y, w, h); c.restore();
+}
+function tagPill(x, y, label, a) {
+  if (a <= 0) return;
+  const w = tw(label, 13, UI, 800, 1.5) + 20;
+  c.save(); c.globalAlpha *= a;
+  c.fillStyle = brandGrad(x, x + w); rr(x, y - 26, w, 24, 12); c.fill();
+  text(label, x + 10, y - 9, 13, { w: 800, col: '#fff', ls: 1.5 });
+  c.restore();
+}
+function S2(t) {
+  // --- print + scan (4.0 – 6.9) ---
+  const slipOut = eInCubic(prog(t, 6.3, 6.75));
+  const dim = eOutCubic(prog(t, 5.7, 6.2));
+  if (t < 6.8) {
+    c.save();
+    const sc = 1 - .06 * dim, sx = SL.x + SL.w / 2, sy = SL.y + SL.h / 2;
+    c.translate(sx + slipOut * 500, sy); c.scale(sc, sc); c.translate(-sx, -sy);
+    c.globalAlpha = (1 - .6 * dim) * (1 - slipOut);
+    c.translate(SL.x, SL.y); drawSlip(1); c.translate(-SL.x, -SL.y);
+    // screenshot capture: crop marks + flash
+    const cap = eOutExpo(prog(t, 4.1, 4.5));
+    if (cap > 0 && dim < 1) {
+      const m = lerp(40, 14, cap);
+      c.save(); c.globalAlpha *= (1 - dim) * cap; c.strokeStyle = 'rgba(238,240,250,.85)'; c.lineWidth = 3;
+      const x = SL.x - m, y = SL.y - m, w = SL.w + m * 2, h = SL.h + m * 2, L = 34;
+      c.beginPath();
+      for (const [px, py, dx, dy] of [[x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1]]) { c.moveTo(px, py + dy * L); c.lineTo(px, py); c.lineTo(px + dx * L, py); }
+      c.stroke(); c.restore();
+    }
+    const fl = Math.max(0, 1 - Math.abs(t - 4.3) / .12);
+    if (fl > 0) { c.fillStyle = `rgba(255,255,255,${.5 * fl * (1 - slipOut)})`; rr(SL.x, SL.y, SL.w, SL.h, 30); c.fill(); }
+    // scan beam
+    const sp = prog(t, 4.5, 5.6);
+    if (sp > 0 && sp < 1) {
+      const by = SL.y + eInOutSine(sp) * SL.h;
+      c.save(); rr(SL.x - 30, SL.y, SL.w + 60, SL.h, 30); c.clip();
+      const g = c.createLinearGradient(0, by - 160, 0, by);
+      g.addColorStop(0, rgba(P.teal, 0)); g.addColorStop(1, rgba(P.teal, .16));
+      c.fillStyle = g; c.fillRect(SL.x - 30, by - 160, SL.w + 60, 160);
+      c.restore();
+      c.save(); c.shadowColor = P.teal; c.shadowBlur = 30;
+      c.fillStyle = brandGrad(SL.x - 30, SL.x + SL.w + 30); c.fillRect(SL.x - 30, by - 2, SL.w + 60, 4);
+      c.fillStyle = 'rgba(255,255,255,.9)'; c.fillRect(SL.x + 40, by - 1, SL.w - 80, 2); c.restore();
+    }
+    // detections
+    for (const f of Object.values(SLIP_F)) {
+      const passT = 4.5 + 1.1 * (Math.acos(1 - 2 * clamp((f.y + f.h / 2) / SL.h)) / Math.PI);
+      const d = eOutBack(prog(t, passT, passT + .3));
+      if (d <= 0) continue;
+      const R = fieldRect(f), fa = 1 - dim;
+      c.save(); c.globalAlpha *= fa;
+      brackets(R.x, R.y, R.w, R.h, clamp(d), P.teal);
+      tagPill(R.x - 6, R.y - 10, f.tag, clamp(d));
+      c.restore();
+    }
+    c.restore();
+  }
+  // --- structured bet card (5.7 – 7.0) ---
+  const cp = eOutExpo(prog(t, 5.85, 6.45));
+  const toList = eInOutCubic(prog(t, 6.45, 7.2));
+  if (cp > 0 && t < 7.2) {
+    const R = lerpRect(CARD, { x: HP.x + 20, y: HP.y + 124, w: HP.w - 40, h: 80 }, toList);
+    c.save();
+    if (toList < .5) {
+      const a = cp * (1 - prog(toList, .25, .5));
+      // green glow
+      c.save(); c.globalAlpha = a * .9;
+      const gg = c.createRadialGradient(R.x + R.w * .5, R.y + R.h * .8, 0, R.x + R.w * .5, R.y + R.h * .8, 420);
+      gg.addColorStop(0, rgba(P.pos, .28)); gg.addColorStop(1, rgba(P.pos, 0)); c.fillStyle = gg; c.fillRect(R.x - 400, R.y - 300, R.w + 800, R.h + 700); c.restore();
+      c.translate(R.x, R.y + (1 - cp) * 40); c.scale(R.w / CARD.w, R.w / CARD.w);
+      drawBetCard(a, t);
+    } else {
+      drawRow(HISTORY[0], R.x, R.y, R.w, R.h, { a: prog(toList, .45, .7), flash: 1 - prog(toList, .7, 1) });
+    }
+    c.restore();
+  }
+  // flying fields → card
+  const flights = [['sel1', 'Santa Clara Sub-23', 36, 158], ['sel2', 'CA Lanús', 300, 158], ['tot', '3.15', 36, 202], ['stake', '10 €', 190, 202]];
+  flights.forEach(([k, label, tx, ty], i) => {
+    const p = eInOutCubic(prog(t, 5.7 + i * .06, 6.25 + i * .06));
+    if (p <= 0 || p >= 1) return;
+    const f = fieldRect(SLIP_F[k]);
+    const x = lerp(f.x + 10, CARD.x + tx, p), y = lerp(f.y + f.h / 2, CARD.y + ty, p) - Math.sin(p * Math.PI) * 80;
+    const w = tw(label, 18, UI, 700) + 24;
+    c.save(); c.globalAlpha = Math.sin(p * Math.PI) * .95;
+    c.shadowColor = P.teal; c.shadowBlur = 18;
+    c.fillStyle = rgba(P.teal, .22); rr(x, y - 18, w, 36, 18); c.fill(); c.shadowBlur = 0;
+    c.strokeStyle = rgba(P.teal, .8); c.lineWidth = 1.5; c.stroke();
+    text(label, x + 12, y + 6, 18, { w: 700 });
+    c.restore();
+  });
+
+  // copy
+  text('IMPORTAÇÃO POR PRINT', 130, 330, 20, { w: 700, col: P.label, ls: 4, a: pulse(t, 4.15, 6.55, .3) });
+  kLine(Wd('Um print.'), 130, 470, 124, t, 4.2, 6.3);
+  kLine(Wd('A *IA* faz a leitura.'), 130, 590, 84, t, 4.8, 6.35);
+  const pa = pulse(t, 5.2, 6.55, .3);
+  if (pa > 0) { chip(130, 650, 'Um boletim de cada vez', { size: 22, h: 50, pad: 20, icon: icReceipt, col: '#C9CEE0', a: pa }); }
+
+  // --- batch import (6.9 – 10.2) ---
+  if (t > 6.7) S2b(t);
+}
+function drawBetCard(a, t) {
+  c.save(); c.globalAlpha *= a;
+  panel(0, 0, CARD.w, CARD.h, { r: 24, fill: 'rgba(24,29,48,.96)', stroke: 'rgba(238,240,250,.12)' });
+  icCheck(46, 52, 20);
+  text('Registada na tua banca', 80, 62, 27, { w: 600 });
+  c.fillStyle = rgba(P.violet, .22); rr(CARD.w - 90, 34, 58, 36, 18); c.fill();
+  text('IA', CARD.w - 61, 59, 19, { w: 800, col: '#B9A5FF', align: 'center' });
+  text('Múltipla · 2 linhas', 36, 128, 34, { w: 700 });
+  text('Santa Clara Sub-23 + CA Lanús · Resultado final', 36, 168, 22, { col: P.mute });
+  let x = 36;
+  x += chip(x, 196, 'Odd 3.15', { size: 21, h: 46 }) + 12;
+  x += chip(x, 196, 'Stake 10 €', { size: 21, h: 46 }) + 12;
+  chip(x, 196, 'Pendente', { size: 21, h: 46, icon: icClock, col: '#C9CEE0' });
+  c.restore();
+}
+const HP = { x: 900, y: 140, w: 890, h: 870 };
+const TG = { x: 130, y: 470, w: 640, h: 285 };
+const XL = { x: 130, y: 780, w: 640, h: 235 };
+function historyState(t) {
+  // list top → bottom: newest batch first
+  const list = [];
+  let inserted = 0;
+  const shifts = BATCHES.map(b => eInOutCubic(prog(t, b.t + .35, b.t + .75)) * 4);
+  BATCHES.forEach((b, bi) => {
+    b.rows.forEach((r, i) => {
+      const arr = b.t + .35 + i * .06;
+      const later = shifts.slice(bi + 1).reduce((s, v) => s + v, 0);
+      list.push({ r, pos: i + later - (4 - shifts[bi]), appear: prog(t, arr + .2, arr + .45), flash: pulse(t, arr + .2, arr + .9, .2), batch: bi });
+    });
+  });
+  const allShift = shifts.reduce((s, v) => s + v, 0);
+  list.push({ r: HISTORY[0], pos: allShift, appear: t >= 7.2 ? 1 : 0, flash: t >= 7.2 ? 1 - prog(t, 7.2, 7.6) : 0 });
+  const count = 1 + BATCHES.reduce((s, b) => s + 12 * eOutCubic(prog(t, b.t + .35, b.t + .9)), 0);
+  return { list, count: Math.round(count) };
+}
+// native history panel (HP.w × HP.h) at origin
+function drawHistory(t, o = {}) {
+  const { hl = 0 } = o;
+  panel(0, 0, HP.w, HP.h, {});
+  glowStroke(0, 0, HP.w, HP.h, 22, hl);
+  drawLogoMark(40, 52, 30);
+  text('Histórico de apostas', 76, 62, 28, { w: 700 });
+  const st = historyState(t);
+  const lbl = `${st.count} apostas`;
+  const cw = tw(lbl, 17, UI, 600) + 28;
+  chip(HP.w - 24 - cw, 36, lbl, { size: 17, h: 38, pad: 14, col: P.text });
+  ['JOGO', 'ODD', 'STAKE', 'RESULTADO'].forEach((l, i) => text(l, [70, HP.w - 300, HP.w - 192, HP.w - 42][i], 110, 13, { w: 700, col: P.mute2, ls: 2, align: i ? 'right' : 'left' }));
+  c.save(); c.beginPath(); c.rect(0, 120, HP.w, HP.h - 132); c.clip();
+  for (const it of st.list) {
+    if (it.appear <= 0) continue;
+    const y = 124 + it.pos * 88;
+    if (y > HP.h) continue;
+    const e = eOutCubic(it.appear);
+    drawRow(it.r, 20 + (1 - e) * 30, y, HP.w - 40, 78, { a: e, flash: it.flash });
+  }
+  c.restore();
+  // "+12" pops
+  BATCHES.forEach(b => {
+    const p = prog(t, b.t + .4, b.t + 1.2);
+    if (p <= 0 || p >= 1) return;
+    text('+12', HP.w - 40 - cw / 2, 30 - p * 30, 20, { fam: HEAD, w: 700, col: P.pos, align: 'center', a: Math.sin(p * Math.PI) });
+  });
+}
+function S2b(t) {
+  const inA = eOutExpo(prog(t, 6.85, 7.5));
+  const outP = eInOutCubic(prog(t, 9.95, 10.75));
+  // sources
+  const srcA = inA * (1 - prog(t, 9.9, 10.3));
+  if (srcA > 0) {
+    c.save(); c.globalAlpha = srcA; c.translate(-(1 - inA) * 80 - prog(t, 9.9, 10.4) * 160, 0);
+    drawTelegram(t); drawExcel(t);
+    c.restore();
+  }
+  // history panel: HP → dashboard slot
+  const R = lerpRect(HP, DS, outP), s = R.w / HP.w;
+  const ha = eOutExpo(prog(t, 6.85, 7.35));
+  if (ha > 0 && t < 10.75) {
+    c.save(); c.globalAlpha = ha; c.translate(R.x, R.y + (1 - ha) * 30); c.scale(s, s);
+    drawHistory(t); c.restore();
+  }
+  // copy
+  text('IMPORTAÇÃO EM LOTE', 130, 160, 20, { w: 700, col: P.label, ls: 4, a: pulse(t, 7.0, 10.0, .3) });
+  kLine(Wd('Telegram ou Excel.'), 130, 272, 78, t, 7.05, 9.85);
+  kLine(Wd('Importa *em* *lote.*'), 130, 372, 78, t, 7.35, 9.9);
+  const pa = pulse(t, 7.7, 10.0, .3);
+  if (pa > 0) chip(130, 408, 'Várias apostas de uma vez', { size: 20, h: 44, pad: 18, icon: icLayers, col: '#C9CEE0', a: pa });
+  // flights
+  BATCHES.forEach((b, bi) => {
+    for (let i = 0; i < 4; i++) {
+      const p = eInOutCubic(prog(t, b.t + i * .06, b.t + .45 + i * .06));
+      if (p <= 0 || p >= 1) continue;
+      const S = b.src === 'Telegram' ? tgMsgRect(i) : xlRowRect(i);
+      const D = { x: HP.x + 20, y: HP.y + 124 + i * 88, w: HP.w - 40, h: 78 };
+      const px = eOutCubic(p), py = p * p;
+      const Rr = { x: lerp(S.x, D.x, px), y: lerp(S.y, D.y, py), w: lerp(S.w, D.w, p), h: lerp(S.h, D.h, p) };
+      const y = Rr.y;
+      const col = srcCol(b.src);
+      c.save(); c.globalAlpha = Math.sin(p * Math.PI);
+      c.shadowColor = col; c.shadowBlur = 24;
+      c.fillStyle = rgba(col, .2); rr(Rr.x, y, Rr.w, Rr.h, 14); c.fill(); c.shadowBlur = 0;
+      c.strokeStyle = rgba(col, .8); c.lineWidth = 1.5; c.stroke();
+      text(b.rows[i].m, Rr.x + 18, y + Rr.h / 2 + 7, 19, { w: 600 });
+      c.restore();
+    }
+  });
+}
+const tgMsgRect = i => ({ x: TG.x + 150, y: TG.y + 74 + i * 48, w: 470, h: 40 });
+const xlRowRect = i => ({ x: XL.x + 20, y: XL.y + 104 + i * 32, w: 600, h: 30 });
+function drawTelegram(t) {
+  panel(TG.x, TG.y, TG.w, TG.h, { fill: '#121826' });
+  c.fillStyle = P.tg; c.beginPath(); c.arc(TG.x + 42, TG.y + 36, 20, 0, 7); c.fill();
+  icPlane(TG.x + 41, TG.y + 37, 22);
+  text('BankFlow Bot', TG.x + 74, TG.y + 34, 20, { w: 700 });
+  text('Telegram · a importar…', TG.x + 74, TG.y + 56, 15, { col: P.mute });
+  c.strokeStyle = P.line; c.beginPath(); c.moveTo(TG.x, TG.y + 66); c.lineTo(TG.x + TG.w, TG.y + 66); c.stroke();
+  // messages: batch 0 → msgs 0..3, batch 2 → msgs 4..7 (chat scrolls)
+  const scroll = eInOutCubic(prog(t, 8.5, 8.8));
+  c.save(); c.beginPath(); c.rect(TG.x, TG.y + 67, TG.w, TG.h - 67); c.clip();
+  for (let k = 0; k < 8; k++) {
+    const slot = k - scroll * 4;
+    const R = tgMsgRect(0); const y = TG.y + 74 + slot * 48;
+    const b = k < 4 ? BATCHES[0] : BATCHES[2], i = k % 4;
+    const appear = k < 4 ? eOutCubic(prog(t, 6.9 + i * .08, 7.3 + i * .08)) : eOutCubic(prog(t, 8.45 + i * .06, 8.75 + i * .06));
+    const hl = pulse(t, b.t - .15 + i * .06, b.t + .35 + i * .06, .12);
+    c.save(); c.translate(R.x + (1 - appear) * 40, y); drawTgBubble(TG_MSGS[k], R.w, R.h, appear * (1 - .5 * prog(t, b.t + .2 + i * .06, b.t + .5 + i * .06)), { hl }); c.restore();
+  }
+  c.restore();
+}
+function drawExcel(t) {
+  panel(XL.x, XL.y, XL.w, XL.h, { fill: '#121826' });
+  c.save(); rr(XL.x, XL.y, XL.w, XL.h, 22); c.clip();
+  c.fillStyle = P.xl; c.fillRect(XL.x, XL.y, XL.w, 46);
+  c.restore();
+  c.fillStyle = '#fff'; rr(XL.x + 22, XL.y + 11, 24, 24, 5); c.fill();
+  text('X', XL.x + 34, XL.y + 30, 17, { w: 800, col: P.xl, align: 'center' });
+  text('apostas_setembro.xlsx', XL.x + 58, XL.y + 30, 18, { w: 600, col: '#fff' });
+  c.save(); c.translate(XL.x + 20, XL.y + 58);
+  drawXlRow(['Data', 'Jogo', 'Mercado', 'Odd', 'Stake'], 600, 32, 1, { fill: '#232A3D' });
+  c.restore();
+  const scroll = eInOutCubic(prog(t, 9.1, 9.4));
+  c.save(); c.beginPath(); c.rect(XL.x, XL.y + 102, XL.w, XL.h - 110); c.clip();
+  for (let k = 0; k < 8; k++) {
+    const b = k < 4 ? BATCHES[1] : BATCHES[3], i = k % 4;
+    const y = XL.y + 104 + (k - scroll * 4) * 32;
+    const hl = pulse(t, b.t - .15, b.t + .45, .12);
+    c.save(); c.translate(XL.x + 20, y); drawXlRow(XL_ROWS[k], 600, 30, 1 - .45 * prog(t, b.t + .2 + i * .06, b.t + .5 + i * .06), { hl }); c.restore();
+  }
+  c.restore();
+}
+
+/* =====================================================================
+   SCENE 3 · 10–16 s · CONTROL (dashboard)
+   ===================================================================== */
+const DF = { x: 110, y: 240, w: 1700, h: 800 };
+const MET_Y = DF.y + 80, MET_H = 150;
+const ROW2_Y = MET_Y + MET_H + 22, ROW2_H = DF.y + DF.h - 26 - (MET_Y + MET_H + 22);
+const DS = { x: DF.x + DF.w - 28 - 523, y: ROW2_Y, w: 523, h: 523 * HP.h / HP.w };
+const CH = { x: DF.x + 28, y: ROW2_Y, w: DF.w - 56 - 523 - 22, h: ROW2_H };
+const METS = (() => {
+  const x0 = DF.x + 28, inner = DF.w - 56, g = 20, w0 = 520, wo = (inner - w0 - g * 3) / 3;
+  return [{ x: x0, w: w0 }, { x: x0 + w0 + g, w: wo }, { x: x0 + w0 + g + wo + g, w: wo }, { x: x0 + w0 + (g + wo) * 2 + g, w: wo }];
+})();
+const fmtK = v => { const s = Math.round(v).toString(); return s.length > 3 ? s.slice(0, -3) + ' ' + s.slice(-3) : s; };
+function drawDashboard(t, o = {}) {
+  const { a = 1, hist = true } = o;
+  const st = i => eOutExpo(prog(t, 10.25 + i * .07, 10.95 + i * .07));
+  c.save(); c.globalAlpha *= a;
+  // frame
+  const f = st(0);
+  panel(DF.x, DF.y + (1 - f) * 30, DF.w, DF.h, { r: 28, fill: 'rgba(16,20,37,.92)', a: f });
+  c.save(); c.globalAlpha *= f;
+  for (let i = 0; i < 3; i++) { c.fillStyle = '#2A3048'; c.beginPath(); c.arc(DF.x + 30 + i * 20, DF.y + 30, 6, 0, 7); c.fill(); }
+  text('bankflow.bet/plataforma', DF.x + 104, DF.y + 36, 17, { col: P.mute });
+  c.strokeStyle = P.line; c.beginPath(); c.moveTo(DF.x, DF.y + 58); c.lineTo(DF.x + DF.w, DF.y + 58); c.stroke();
+  c.restore();
+  // metrics
+  const cnt = eOutCubic(prog(t, 11.0, 12.6));
+  const defs = [
+    { l: 'SALDO', v: fmtK(lerp(1000, 1240, cnt)) + ' €', big: true },
+    { l: 'LUCRO / PERDA', v: '+' + Math.round(240 * cnt) + ' €', col: P.pos },
+    { l: 'ROI', v: '+' + Math.round(18 * cnt) + '%' },
+    { l: 'ACERTO', v: Math.round(57 * cnt) + '%', bar: .57 * cnt },
+  ];
+  defs.forEach((d, i) => {
+    const e = st(i + 1), m = METS[i];
+    if (e <= 0) return;
+    const y = MET_Y + (1 - e) * 40;
+    c.save(); c.globalAlpha *= e;
+    panel(m.x, y, m.w, MET_H, { r: 20, fill: P.card, shadow: false });
+    text(d.l, m.x + 28, y + 44, 16, { w: 700, col: P.mute, ls: 3 });
+    text(d.v, m.x + 28, y + (d.big ? 118 : 112), d.big ? 66 : 50, { fam: HEAD, w: 700, col: d.col || P.text });
+    if (d.big) chip(m.x + m.w - 150, y + 76, '+24%', { size: 20, h: 42, pad: 14, fill: rgba(P.pos, .12), stroke: rgba(P.pos, .3), col: P.pos, icon: icTrend, a: prog(t, 12.2, 12.6) });
+    if (d.bar != null) { c.fillStyle = '#262B40'; rr(m.x + m.w - 150, y + 96, 120, 8, 4); c.fill(); c.fillStyle = P.pos; rr(m.x + m.w - 150, y + 96, 120 * d.bar, 8, 4); c.fill(); }
+    c.restore();
+  });
+  // chart
+  const ce = st(5);
+  if (ce > 0) {
+    c.save(); c.globalAlpha *= ce;
+    const y = CH.y + (1 - ce) * 40;
+    panel(CH.x, y, CH.w, CH.h, { r: 20, fill: P.card, shadow: false });
+    drawChart(CH.x, y, CH.w, CH.h, t);
+    c.restore();
+  }
+  // highlights
+  const hA = kfH(t);
+  glowStroke(METS[0].x, MET_Y, METS[0].w, MET_H, 20, hA.saldo);
+  glowStroke(CH.x, CH.y, CH.w, CH.h, 20, hA.chart);
+  if (hist) { c.save(); c.translate(DS.x, DS.y); c.scale(DS.w / HP.w, DS.w / HP.w); drawHistory(t, { hl: hA.hist }); c.restore(); }
+  c.restore();
+}
+const kfH = t => ({
+  hist: Math.max(pulse(t, 11.0, 12.0, .25), .6 * pulse(t, 13.6, 14.9, .3)),
+  saldo: Math.max(pulse(t, 11.6, 12.6, .25), .6 * pulse(t, 13.6, 14.9, .3)),
+  chart: Math.max(pulse(t, 12.2, 13.3, .25), .6 * pulse(t, 13.6, 14.9, .3)),
+});
+const CHART_PTS = (() => {   // Catmull-Rom densified
+  const pts = [];
+  for (let i = 0; i < BANK.length - 1; i++) {
+    const p0 = BANK[Math.max(0, i - 1)], p1 = BANK[i], p2 = BANK[i + 1], p3 = BANK[Math.min(BANK.length - 1, i + 2)];
+    for (let s = 0; s < 12; s++) {
+      const u = s / 12, u2 = u * u, u3 = u2 * u;
+      pts.push([i + u, .5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (-p0 + 3 * p1 - 3 * p2 + p3) * u3)]);
+    }
+  }
+  pts.push([BANK.length - 1, BANK[BANK.length - 1]]);
+  return pts;
+})();
+function drawChart(x, y, w, h, t) {
+  text('EVOLUÇÃO DA BANCA', x + 30, y + 48, 16, { w: 700, col: P.mute, ls: 3 });
+  text('+240 € (24 dias)', x + w - 30, y + 48, 19, { w: 600, col: P.pos, align: 'right', a: prog(t, 12.4, 12.8) });
+  const px = x + 110, pw = w - 150, py = y + 90, ph = h - 160;
+  const X = i => px + i / (BANK.length - 1) * pw, Y = v => py + ph - (v - 980) / (1260 - 980) * ph;
+  c.save(); c.setLineDash([3, 7]); c.strokeStyle = 'rgba(238,240,250,.1)'; c.lineWidth = 1;
+  for (const v of [1000, 1100, 1200]) { c.beginPath(); c.moveTo(px, Y(v)); c.lineTo(px + pw, Y(v)); c.stroke(); text(fmtK(v) + ' €', px - 16, Y(v) + 6, 15, { col: P.mute2, align: 'right' }); }
+  c.restore();
+  ['Dia 1', 'Dia 8', 'Dia 16', 'Dia 24'].forEach((l, i) => text(l, X([0, 7, 15, 23][i]), py + ph + 40, 15, { col: P.mute2, align: i === 0 ? 'left' : i === 3 ? 'right' : 'center' }));
+  const dp = eInOutSine(prog(t, 11.35, 13.1)) * (BANK.length - 1);
+  if (dp <= 0) return;
+  const pts = CHART_PTS.filter(p => p[0] <= dp);
+  const last = pts[pts.length - 1];
+  // area
+  const g = c.createLinearGradient(0, py, 0, py + ph);
+  g.addColorStop(0, rgba(P.pos, .28)); g.addColorStop(1, rgba(P.pos, 0));
+  c.fillStyle = g; c.beginPath(); c.moveTo(X(0), py + ph);
+  for (const p of pts) c.lineTo(X(p[0]), Y(p[1]));
+  c.lineTo(X(last[0]), py + ph); c.closePath(); c.fill();
+  c.save(); c.shadowColor = rgba(P.pos, .6); c.shadowBlur = 16; c.strokeStyle = P.pos; c.lineWidth = 3.5;
+  c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(X(p[0]), Y(p[1])) : c.moveTo(X(p[0]), Y(p[1]))); c.stroke(); c.restore();
+  c.fillStyle = P.pos; c.beginPath(); c.arc(X(last[0]), Y(last[1]), 7, 0, 7); c.fill();
+  c.fillStyle = rgba(P.pos, .25); c.beginPath(); c.arc(X(last[0]), Y(last[1]), 16, 0, 7); c.fill();
+}
+function S3(t) {
+  // camera into chart for the transition to intelligence
+  const z = eInCubic(prog(t, 15.35, 16.25));
+  const cx = CH.x + CH.w / 2, cy = CH.y + CH.h / 2;
+  const a = 1 - prog(t, 15.75, 16.2);
+  c.save(); c.translate(cx, cy); c.scale(1 + z * .55, 1 + z * .55); c.translate(-cx, -cy);
+  drawDashboard(t, { a, hist: t >= 10.75 });
+  c.restore();
+  kLine(Wd('Registo.'), 130, 180, 88, t, 11.0, 13.4);
+  const w1 = tw('Registo. ', 88, HEAD, 700);
+  kLine(Wd('Saldo.'), 130 + w1, 180, 88, t, 11.6, 13.45);
+  const w2 = tw('Registo. Saldo. ', 88, HEAD, 700);
+  kLine(Wd('*Análise.*'), 130 + w2, 180, 88, t, 12.2, 13.5);
+  kLine(Wd('Tudo numa *única* *visão.*'), 130, 180, 88, t, 13.65, 15.3);
+}
+
+/* =====================================================================
+   SCENE 4 · 16–24 s · INTELLIGENCE
+   ===================================================================== */
+const IP = { x: 830, y: 140, w: 960, h: 820 };
+function insightChips(x, y, w, h, good, bad, t, focusG, focusB, size = 28) {
+  const g = 20, cw = (w - g) / 2;
+  const cardC = (cx, lab, val, col, f) => {
+    const s = 1 + .03 * f;
+    c.save(); c.translate(cx + cw / 2, y + h / 2); c.scale(s, s); c.translate(-(cx + cw / 2), -(y + h / 2));
+    if (f > 0) { c.shadowColor = rgba(col, .5 * f); c.shadowBlur = 30 * f; }
+    c.fillStyle = rgba(col, .09 + .06 * f); rr(cx, y, cw, h, 16); c.fill(); c.shadowBlur = 0;
+    c.strokeStyle = rgba(col, .25 + .4 * f); c.lineWidth = 1.5; c.stroke();
+    text(lab, cx + 22, y + h * .38, size * .56, { w: 700, col: '#C8CDE0', ls: 2.5 });
+    text(val, cx + 22, y + h * .78, size, { w: 700, col });
+    c.restore();
+  };
+  const dimG = 1 - .55 * focusB, dimB = 1 - .55 * focusG;
+  c.save(); c.globalAlpha *= dimG; cardC(x, 'A FUNCIONAR', good, P.pos, focusG); c.restore();
+  c.save(); c.globalAlpha *= dimB; cardC(x + cw + g, 'A CORRIGIR', bad, P.neg, focusB); c.restore();
+}
+function richLine(parts, x, y, size, w = 500) {
+  font(size, UI, w); let cx = x;
+  for (const [s, col] of parts) { c.fillStyle = col || '#D5D9E8'; c.fillText(s, cx, y); cx += c.measureText(s).width; }
+}
+function drawInsights(t, o = {}) {
+  const { W: pw = IP.w, H: ph = IP.h } = o;
+  panel(0, 0, pw, ph, { r: 28, fill: 'rgba(19,24,43,.96)' });
+  const ca = prog(t, 16.3, 16.6);
+  if (ca <= 0) return;
+  c.save(); c.globalAlpha *= ca;
+  icSpark(46, 52, 28, P.label);
+  text('INTELIGÊNCIA', 76, 60, 20, { w: 800, col: P.label, ls: 4 });
+  text('Padrões encontrados no teu histórico', 36, 104, 24, { col: P.mute });
+  const fG = pulse(t, 16.7, 18.15, .3), fB = pulse(t, 18.2, 19.5, .3);
+  const fC = pulse(t, 19.85, 20.75, .25), fO = pulse(t, 20.75, 21.7, .25);
+  const scroll = 340 * eInOutCubic(prog(t, 19.4, 20.1));
+  c.save(); c.beginPath(); c.rect(0, 130, pw, ph - 150); c.clip();
+  c.translate(36, 144 - scroll);
+  const cw = pw - 72;
+  // main insight
+  const e1 = eOutExpo(prog(t, 16.35, 16.9));
+  c.save(); c.globalAlpha *= e1 * (1 - .5 * prog(scroll, 150, 320)); c.translate(0, (1 - e1) * 30);
+  panel(0, 0, cw, 470, { r: 22, fill: P.card2, shadow: false, stroke: 'rgba(238,240,250,.1)' });
+  icLive(36, 44, 30, P.label);
+  text('APOSTAS AO VIVO', 64, 51, 19, { w: 800, col: P.label, ls: 3 });
+  richLine([['No pré-jogo fechas '], ['+11%', P.pos], ['. Ao vivo, é o teu maior']], 36, 112, 29);
+  richLine([['buraco: '], ['−18%', P.neg], ['.']], 36, 152, 29);
+  // diverging bars
+  const axis = 520, sc = 300 / 20, bp = eOutCubic(prog(t, 16.6, 17.4));
+  const rowB = (yy, lab, v, col, f, dimmed) => {
+    c.save(); c.globalAlpha *= dimmed;
+    text(lab, 36, yy + 9, 23, { w: 600 });
+    c.fillStyle = '#262B42'; rr(axis - 300, yy - 14, 600, 28, 14); c.fill();
+    const len = Math.abs(v) * sc * bp;
+    if (f > 0) { c.shadowColor = col; c.shadowBlur = 24 * f; }
+    c.fillStyle = col; if (v > 0) rr(axis, yy - 14, len, 28, 14); else rr(axis - len, yy - 14, len, 28, 14); c.fill(); c.shadowBlur = 0;
+    text((v > 0 ? '+' : '−') + Math.abs(v) + '%', v > 0 ? axis + len + 14 : axis - len - 14, yy + 9, 24, { fam: HEAD, w: 700, col, align: v > 0 ? 'left' : 'right', a: bp });
+    c.restore();
+  };
+  rowB(222, 'Pré-jogo', 11, P.pos, fG, 1 - .55 * fB);
+  rowB(282, 'Ao vivo', -18, P.neg, fB, 1 - .55 * fG);
+  c.fillStyle = 'rgba(238,240,250,.35)'; c.fillRect(axis - 1, 196, 2, 112);
+  insightChips(36, 336, cw - 72, 108, 'Pré-jogo · +11%', 'Ao vivo · −18%', t, fG, fB, 30);
+  c.restore();
+  // competition + odds cards
+  const card = (yy, e, label, icon, parts, good, bad, f) => {
+    if (e <= 0) return;
+    c.save(); c.globalAlpha *= e; c.translate(0, yy + (1 - e) * 40);
+    panel(0, 0, cw, 196, { r: 22, fill: P.card2, shadow: false, stroke: 'rgba(238,240,250,.1)' });
+    glowStroke(0, 0, cw, 196, 22, f);
+    icon(36, 40, 26, P.label);
+    text(label, 62, 47, 18, { w: 800, col: P.label, ls: 3 });
+    richLine(parts, 36, 92, 24);
+    insightChips(36, 112, cw - 72, 68, good, bad, t, 0, 0, 21);
+    c.restore();
+  };
+  card(490, eOutExpo(prog(t, 19.5, 20.1)), 'POR COMPETIÇÃO', icLayers, [['Na Liga Portugal fechas '], ['+14%', P.pos], ['. Na Premier League, '], ['−9%', P.neg], ['.']], 'Liga Portugal · +14%', 'Premier League · −9%', fC);
+  card(706, eOutExpo(prog(t, 19.65, 20.25)), 'POR ODDS', icTrend, [['Até 1.90, o teu ROI é '], ['+21%', P.pos], ['. Acima de 2.50, '], ['−9%', P.neg], ['.']], 'Odds até 1.90 · +21%', 'Acima de 2.50 · −9%', fO);
+  c.restore();
+  c.restore();
+}
+function S4(t) {
+  // panel grows out of the chart card
+  const g = eInOutCubic(prog(t, 15.7, 16.45));
+  const zc = { x: CH.x + CH.w / 2, y: CH.y + CH.h / 2 }, zs = 1.55;
+  const from = { x: zc.x + (CH.x - zc.x) * zs, y: zc.y + (CH.y - zc.y) * zs, w: CH.w * zs, h: CH.h * zs };
+  const R = lerpRect(from, IP, g);
+  const rec = eInOutCubic(prog(t, 21.55, 22.2));             // recede behind closing line
+  const conv = eInExpo(prog(t, 23.7, 24.45));                // converge to logo
+  const a = prog(t, 15.75, 16.1) * (1 - .78 * rec) * (1 - conv);
+  if (a > 0) {
+    c.save(); c.globalAlpha = a;
+    const s = (R.w / IP.w) * (1 - .1 * rec) * (1 - .9 * conv);
+    const cx = lerp(R.x + R.w / 2, 960, Math.max(rec * .35, conv)), cy = lerp(R.y + R.h / 2, 540, Math.max(rec * .2, conv));
+    c.translate(cx, cy); c.scale(s, (R.h / IP.h) * (1 - .1 * rec) * (1 - .9 * conv)); c.translate(-IP.w / 2, -IP.h / 2);
+    drawInsights(t);
+    glowStroke(0, 0, IP.w, IP.h, 28, pulse(t, 15.8, 16.8, .3));
+    c.restore();
+  }
+  // copy (left)
+  text('INTELIGÊNCIA', 130, 400, 20, { w: 700, col: P.label, ls: 4, a: pulse(t, 16.5, 21.6, .3) });
+  kLine(Wd('Descobre'), 130, 510, 100, t, 16.6, 17.95);
+  kLine(Wd('onde *ganhas.*'), 130, 622, 100, t, 16.7, 18.0);
+  kLine(Wd('Percebe'), 130, 510, 100, t, 18.15, 21.4);
+  kLine(Wd('onde *perdes.*'), 130, 622, 100, t, 18.25, 21.45);
+  // closing line
+  const sc = pulse(t, 21.7, 23.9, .5);
+  if (sc > 0) { c.save(); c.globalAlpha = sc * .85; const g2 = c.createRadialGradient(960, 560, 0, 960, 560, 900); g2.addColorStop(0, 'rgba(13,17,32,.95)'); g2.addColorStop(1, 'rgba(13,17,32,0)'); c.fillStyle = g2; c.fillRect(0, 0, W, H); c.restore(); }
+  kLine(Wd('Conhece os teus *padrões.*'), 960, 500, 104, t, 21.85, 23.6, { align: 'center' });
+  kLine(Wd('Afina o teu *método.*'), 960, 640, 104, t, 22.45, 23.65, { align: 'center' });
+  // Dados ilustrativos inside the panel header is drawn globally
+}
+
+/* =====================================================================
+   SCENE 5 · 24–30 s · BRAND & CTA
+   ===================================================================== */
+function S5(t) {
+  // bloom at convergence
+  const bl = pulse(t, 24.25, 25.6, .35);
+  if (bl > 0) {
+    const g = c.createRadialGradient(960, 500, 0, 960, 500, 700);
+    g.addColorStop(0, `rgba(20,215,196,${.16 * bl})`); g.addColorStop(.5, `rgba(139,92,246,${.1 * bl})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+  }
+  // persistent soft halo behind logo
+  const ha = eOutCubic(prog(t, 24.6, 25.8));
+  if (ha > 0) {
+    const g = c.createRadialGradient(960, 330, 0, 960, 330, 520);
+    g.addColorStop(0, `rgba(46,158,230,${.10 * ha})`); g.addColorStop(1, 'rgba(46,158,230,0)');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+  }
+  if (LOGO.complete) drawLogo(960, 320, 780, 24.55, t);
+  kLine([{ t: 'Analisa' }, { t: 'o' }, { t: 'teu', g: 1 }, { t: 'jogo.', g: 1 }], 960, 575, 92, t, 25.4, null, { align: 'center' });
+  kLine([{ t: 'Domina' }, { t: 'os' }, { t: 'teus', g: 1 }, { t: 'números.', g: 1 }], 960, 688, 92, t, 25.6, null, { align: 'center' });
+  // CTA
+  const cp = eOutBack(prog(t, 26.2, 26.75), 1.2), ca = prog(t, 26.2, 26.45);
+  if (cp > 0) {
+    font(31, UI, 600); const label = 'Começar a registar', lw = c.measureText(label).width;
+    const bw = lw + 70 + 44, bh = 86, bx = 960 - bw / 2, by = 790;
+    c.save(); c.globalAlpha = ca; c.translate(960, by + bh / 2); c.scale(lerp(.9, 1, cp), lerp(.9, 1, cp)); c.translate(-960, -(by + bh / 2));
+    c.shadowColor = 'rgba(120,61,236,.55)'; c.shadowBlur = 50; c.shadowOffsetY = 12;
+    c.fillStyle = ctaGrad(bx, bx + bw); rr(bx, by, bw, bh, 20); c.fill(); c.shadowBlur = 0; c.shadowOffsetY = 0;
+    c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 1.5; c.stroke();
+    text(label, bx + 35, by + bh / 2 + 11, 31, { w: 600, col: '#fff' });
+    icArrow(bx + bw - 50, by + bh / 2, 26, '#fff');
+    // one sheen pass
+    const sx = lerp(bx - 120, bx + bw + 120, prog(t, 26.7, 27.25));
+    if (sx > bx - 120 && sx < bx + bw + 120) {
+      c.save(); rr(bx, by, bw, bh, 20); c.clip();
+      const sg = c.createLinearGradient(sx - 70, 0, sx + 70, 0); sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(.5, 'rgba(255,255,255,.25)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = sg; c.fillRect(sx - 70, by, 140, bh); c.restore();
+    }
+    c.restore();
+  }
+  text('bankflow.bet', 960, 950, 34, { fam: HEAD, w: 500, col: P.text, align: 'center', a: .78 * eOutCubic(prog(t, 26.5, 27.1)) });
+}
+
+/* =====================================================================
+   COMPOSITION
+   ===================================================================== */
+function drawScene(t) {
+  reset(c);
+  background(t);
+  if (t < 4.0) S1(t);
+  if (t >= 9.9 && t < 16.4) S3(t);          // dashboard sits beneath the incoming history panel
+  if (t >= 4.0 && t < 10.9) S2(t);
+  if (t >= 15.6 && t < 24.6) S4(t);
+  if (t >= 24.0) S5(t);
+  // discreet label while numbers are on screen
+  const da = pulse(t, 7.3, 23.5, .4);
+  if (da > 0) {
+    c.save(); c.globalAlpha = da * .85;
+    icInfo(1628, 1052, 16, P.mute);
+    text('Dados ilustrativos', 1644, 1058, 17, { col: P.mute });
+    c.restore();
+  }
+  // fade in from black
+  const fi = 1 - prog(t, 0, .35);
+  if (fi > 0) { c.fillStyle = `rgba(5,6,12,${fi})`; c.fillRect(0, 0, W, H); }
+}
+// fine dither noise against banding on gradients
+const NOISE = Array.from({ length: 3 }, (_, k) => {
+  const g = mk(256, 256), gx = g.getContext('2d'), id = gx.createImageData(256, 256), r = mulberry32(k + 11);
+  for (let i = 0; i < id.data.length; i += 4) { const v = r() * 255; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 255; }
+  gx.putImageData(id, 0, 0); return g;
+});
+function renderFrame(t) {
+  reset(out);
+  // no subframes during the static final hold
+  const n = t >= 27.4 ? 1 : SUB;
+  for (let i = 0; i < n; i++) {
+    drawScene(t + (n > 1 ? (i / n) * (SHUTTER / FPS) : 0));
+    out.globalAlpha = 1 / (i + 1); out.drawImage(sceneC, 0, 0);
+  }
+  reset(out);
+  const f = t >= 27.4 ? 0 : Math.floor(t * FPS);
+  out.globalCompositeOperation = 'overlay'; out.globalAlpha = .035;
+  out.fillStyle = out.createPattern(NOISE[f % 3], 'repeat'); out.fillRect(0, 0, W, H);
+  reset(out);
+}
+window.renderFrame = renderFrame;
+window.META = { W, H, FPS, DUR };
+window.ready = Promise.all([
+  document.fonts.load('700 40px "Space Grotesk"'), document.fonts.load('500 40px "Space Grotesk"'),
+  document.fonts.load('500 40px "Inter"'), document.fonts.load('700 40px "Inter"'),
+  new Promise(r => { if (LOGO.complete) r(); else LOGO.onload = r; }),
+]).then(() => true);
+
+if (!RENDER) {
+  const audio = new Audio('bankflow-audio.wav');
+  let t0 = null;
+  window.ready.then(() => {
+    const loop = now => { if (t0 === null) t0 = now; renderFrame(((now - t0) / 1000) % DUR); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  });
+  cv.addEventListener('click', () => { t0 = null; audio.currentTime = 0; audio.play().catch(() => {}); });
+}
+</script>
+</body>
+</html>
