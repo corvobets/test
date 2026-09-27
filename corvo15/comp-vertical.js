@@ -11,7 +11,7 @@ const LIFT = [EV.card1, EV.card2, EV.card3];
 /* ---------- phone path ---------- */
 const PH_LAND = { cx: 540, cy: 1360, s: 0.5, rx: 0.1, ry: 0.16, rz: 0 };
 const PH_FOCUS = k => ({ cx: 540, cy: 1060 - CARD_CY[k] * 0.84, s: 0.84, rx: 0, ry: 0, rz: 0 });
-const PH_END = { cx: 540, cy: 1000 + 0.5 * PHH * 0.5, s: 0.5, rx: 0.1, ry: 0.0, rz: 0 };
+const PH_END = { cx: 540, cy: 1000 + 0.5 * PHH * 0.6, s: 0.6, rx: 0.08, ry: 0.0, rz: 0 };
 function phoneState(t) {
   if (t < EV.s2) {
     const e = eOutExpo(prog(t, EV.phoneIn, EV.phoneLand + 0.1)), drift = prog(t, EV.phoneLand, EV.s2);
@@ -163,12 +163,12 @@ function sceneD(t) {
   const ph = { ...PH_END, cy: lerp(PH_END.cy + 900, PH_END.cy, e) - 10 * prog(t, EV.final + 0.9, EV.end), rx: lerp(0.5, PH_END.rx, e) };
   drawPhone(ph);
   // the phone fades into the stage towards the bottom (platform UI area)
-  stageOverlay(t, 1450, 1250, { glowY: 0.72 });
+  stageOverlay(t, 1520, 1330, { glowY: 0.72 });
   logoReveal(CX, FINAL.logoCy, FINAL.logoW, t, EV.final);
   const fs = FS_HEAD, lh = fs * 1.04;
   FINAL.head.forEach((ln, i) => lineRise(ln, CX, FINAL.y0 + i * lh, fs, t, EV.head2 + i * 0.08, null, { align: 'center', col: i === 3 ? P.lime : P.white }));
   ctaPill(CX, 1262, t, EV.cta);
-  txt('18+ | Joga com responsabilidade.', CX, 1476, 27, { w: 600, align: 'center', col: 'rgba(255,255,255,0.75)', a: eOutCubic(prog(t, EV.cta + 0.2, EV.cta + 0.6)) });
+  txt('18+ | Joga com responsabilidade.', CX, 1534, 27, { w: 600, align: 'center', col: 'rgba(255,255,255,0.75)', a: eOutCubic(prog(t, EV.cta + 0.2, EV.cta + 0.6)) });
   c.restore();
 }
 
