@@ -1,0 +1,13 @@
+<!doctype html><html><head><style>
+@font-face{font-family:'Montserrat';src:url(../fonts/montserrat-italic.woff2);font-weight:100 900;font-style:italic}
+body{margin:0;background:#222}</style></head><body>
+<canvas id=c width=2307 height=1140></canvas><script src="logo.js"></script>
+<script>
+const c=document.getElementById('c').getContext('2d');
+const img=new Image(); img.src='banner-original.webp';
+Promise.all([CorvoLogo.load('logo-paths.json'), document.fonts.load('italic 900 40px Montserrat'), new Promise(r=>img.onload=r)]).then(()=>{
+  c.fillStyle='#6a3fc9'; c.fillRect(0,0,2307,549);
+  CorvoLogo.draw(c,0,0,2307);
+  c.drawImage(img,366,158,769,183,0,590,2307,549);
+});
+</script></body></html>

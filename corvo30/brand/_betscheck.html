@@ -1,0 +1,27 @@
+<!doctype html><html><head><style>
+@font-face{font-family:M;src:url(../fonts/montserrat-italic.woff2);font-weight:100 900;font-style:italic}
+body{margin:0;background:#222}</style></head><body>
+<canvas id=c width=1400 height=900></canvas>
+<script>
+const c=document.getElementById('c').getContext('2d');
+const img=new Image(); img.src='banner-original.webp';
+const J=fetch('logo-paths.json').then(r=>r.json());
+Promise.all([J, document.fonts.load('italic 900 40px M'), new Promise(r=>img.onload=r)]).then(([d])=>{
+  const S=6, ox=366, oy=158;
+  const [x0,x1,y0,y1]=d.betsBox;
+  const draw=(dy, overlay, weight)=>{
+    c.save(); c.translate(0,dy);
+    c.imageSmoothingQuality='high';
+    c.drawImage(img, ox+610, oy+55, 155, 75, 0, 0, 155*S, 75*S);
+    if(overlay){
+      c.font=`italic ${weight} 100px M`; const m=c.measureText('BETS');
+      const asc=m.actualBoundingBoxAscent, left=m.actualBoundingBoxLeft, w=m.actualBoundingBoxLeft+m.actualBoundingBoxRight;
+      const hTarget=(y1-y0), sc=hTarget/asc, wTarget=(x1-x0);
+      c.save(); c.translate((x0-610)*S,(y1-55)*S); c.scale(S*wTarget/w, S*sc);
+      c.fillStyle=overlay; c.fillText('BETS', left, 0); c.restore();
+    }
+    c.restore();
+  };
+  draw(0, null); draw(460,'rgba(255,0,80,0.55)', 900);
+});
+</script></body></html>
