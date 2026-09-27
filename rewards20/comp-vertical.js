@@ -386,7 +386,7 @@ function sceneWheel(t) {
     c.save(); c.globalAlpha *= 1 - wp;
     slam('JACKPOT!', CX, 520, 190, t, T.jackpot, { col: '#FFC21A', from: 1.6 });
     const q = eOutBack(prog(t, T.jackpot + 0.12, T.jackpot + 0.4), 1.6);
-    if (q > 0) { c.save(); c.translate(CX, 640); c.scale(q, q); coin(-210, -22, 40); M(84, 900, true); c.fillStyle = P.white; c.textAlign = 'center'; c.fillText('10 000 CP', 40, 8); c.textAlign = 'left'; c.restore(); }
+    if (q > 0) { c.save(); c.translate(CX, 640); c.scale(q, q); coin(-275, -26, 40); M(84, 900, true); c.fillStyle = P.white; c.textAlign = 'center'; c.fillText('10 000 CP', 45, 8); c.textAlign = 'left'; c.restore(); }
     c.restore();
   }
 }
