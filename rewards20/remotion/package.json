@@ -1,0 +1,20 @@
+{
+  "name": "corvobets-rewards-remotion",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "node sync-public.mjs",
+    "studio": "node sync-public.mjs && remotion studio",
+    "render:vertical": "node sync-public.mjs && remotion render Vertical out/CorvoBetsRewards_20s_Vertical.mp4",
+    "render:horizontal": "node sync-public.mjs && remotion render Horizontal out/CorvoBetsRewards_20s_Horizontal.mp4",
+    "render": "npm run render:vertical && npm run render:horizontal"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.529",
+    "@remotion/zod-types": "4.0.529",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.529",
+    "zod": "3.22.3"
+  }
+}
