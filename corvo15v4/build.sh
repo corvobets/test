@@ -28,7 +28,7 @@ fi
 : > "$TMP/v.txt"; for j in $(seq 0 $((JOBS - 1))); do echo "file '$TMP/v$j.mp4'" >> "$TMP/v.txt"; done
 OUT=CorvoBets_15s_Vertical_V4.mp4
 "$FFMPEG" -y -loglevel error -f concat -safe 0 -i "$TMP/v.txt" -i corvo15v4-audio.wav \
-  -c:v libx264 -preset slow -crf 14 -maxrate 30M -bufsize 60M -pix_fmt yuv420p -profile:v high -level 4.2 \
+  -c:v libx264 -preset slow -crf 15 -maxrate 15M -bufsize 30M -pix_fmt yuv420p -profile:v high -level 4.2 \
   -r 60 -color_primaries bt709 -color_trc bt709 -colorspace bt709 \
   -c:a aac -b:a 320k -shortest -movflags +faststart "$OUT"
 ls -la "$OUT"

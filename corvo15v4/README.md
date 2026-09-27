@@ -13,7 +13,7 @@ This is a separate project. V3 (`../corvo15v3/`) and the earlier 15s project (`.
 - **Video quality**
   - Recording frames are kept at their native 1320 px width, with a single resample onto the canvas, so the text is sharper.
   - Motion blur uses 5 sub-frames, and up to 12 on the fast moves.
-  - Encoded at CRF 14.
+  - Encoded at CRF 15, capped at 15 Mb/s so the file stays under 30 MB.
 - **Animation**
   - The hook slams harder, with a colour bloom, lime shockwave rings and a short camera shake on the heavy hits.
   - The phone lands with a spring.
