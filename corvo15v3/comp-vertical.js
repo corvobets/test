@@ -34,7 +34,7 @@ function phoneState(t) {
 /* ---------- A · 0 – 2 : hook ---------- */
 let S25 = 160, SNUM = 190;
 function slamLine(s, y, size, t, t0, col, outP, arrow = 0) {
-  const p = prog(t, t0, t0 + 0.42); if (p <= 0) return;
+  if (t < t0) return; const p = prog(t, t0, t0 + 0.42);
   const ls = -size * 0.025, tw0 = tw(s, size, 900, ls), aw = arrow ? size * 0.95 : 0, gap = arrow ? size * 0.26 : 0, wd = tw0 + gap + aw, sc = lerp(1.25, 1, eOutExpo(p));
   c.save(); c.translate(CX, y - size * 0.36); c.scale(sc, sc); c.translate(-wd / 2, size * 0.36);
   c.globalAlpha *= (t0 > 0 ? clamp(p * 10) : 1) * (1 - outP); c.translate(0, -outP * size * 0.9);
