@@ -115,8 +115,11 @@ const COLS = (() => { const r = mulberry32(5); return Array.from({ length: 14 },
   const side = k % 2, x = side ? W - Math.pow(r(), 1.5) * W * 0.4 : Math.pow(r(), 1.5) * W * 0.4;
   return { x, w: (50 + r() * 200) * Math.max(W, H) / 1920, a: 0.16 + r() * 0.45, v: (r() - .5) * 18, ph: r() * 6 };
 }); })();
+// hit energy: decays after each musical accent (drives stage-light bursts and the camera punch)
+const HITS = [[EV.hit, 1], [EV.w2, 0.5], [EV.logo, 0.45], [EV.s2, 0.35], [EV.s3, 0.9], [EV.corvo, 0.45], [EV.final, 1], [EV.cta, 0.35], [EV.stinger, 0.6]];
+const hitK = t => HITS.reduce((a, [h, w]) => a + (t >= h ? w * Math.exp(-(t - h) * 9) : 0), 0);
 function stage(t, o = {}) {
-  const { light = 1, glowY = 0.62, glow = 1 } = o;
+  const { glowY = 0.62, glow = 1 } = o, light = (o.light ?? 1) * (1 + 1.6 * hitK(t));
   c.fillStyle = P.purple; c.fillRect(-50, -50, W + 100, H + 100);
   if (light <= 0) return;
   c.save(); c.globalCompositeOperation = 'lighter';
@@ -142,7 +145,8 @@ function stageOverlay(t, y0, y1, o = {}) {
 // additive lime flash (hits)
 function limeFlash(t, t0, amt = 0.5, dur = 0.28) {
   const p = prog(t, t0, t0 + dur); if (p <= 0 || p >= 1) return;
-  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = amt * Math.pow(1 - p, 2.2); c.fillStyle = P.lime; c.fillRect(0, 0, W, H); c.restore();
+  // screen-blended lime: stays vivid on the purple (additive lime turns olive/grey)
+  c.save(); c.globalCompositeOperation = 'screen'; c.globalAlpha = amt * Math.pow(1 - p, 3); c.fillStyle = P.lime; c.fillRect(0, 0, W, H); c.restore();
 }
 
 /* ---------- logo ---------- */
@@ -415,7 +419,11 @@ async function renderFrame(t) {
   const times = Array.from({ length: n }, (_, i) => t + (n > 1 ? (i / n) * (SHUTTER / FPS) : 0));
   for (let pass = 0; pass < 3; pass++) {
     FS.misses.clear(); reset(out);
-    times.forEach((ts, i) => { reset(c); drawScene(ts); out.globalAlpha = 1 / (i + 1); out.drawImage(FRAME_CV, 0, 0); });
+    times.forEach((ts, i) => {
+      reset(c); drawScene(ts); out.globalAlpha = 1 / (i + 1);
+      const k = 1 + 0.028 * Math.min(1, hitK(ts));          // camera punch on the hits
+      out.drawImage(FRAME_CV, -W * (k - 1) / 2, -H * (k - 1) / 2, W * k, H * k);
+    });
     out.globalAlpha = 1;
     if (!FS.misses.size) break;
     await FS.fill();

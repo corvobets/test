@@ -47,7 +47,7 @@ function hookText(t) {
     const y = lerp(900 + i * size * 1.04, 640 + i * size * 1.04 * sc, move);
     const slamS = lerp(1.22, 1, eOutExpo(p)), outP = eInCubic(prog(t, EV.s2 - 0.22, EV.s2 + 0.04));
     c.save(); c.translate(CX, y - size * sc * 0.36); c.scale(sc * slamS, sc * slamS); c.translate(-wd / 2, size * 0.36);
-    c.globalAlpha *= clamp(p * 5) * (1 - outP);
+    c.globalAlpha *= (i ? clamp(p * 12) : 1) * (1 - outP);
     c.translate(0, -outP * size * 0.8);
     M(size); c.letterSpacing = ls + 'px'; c.fillStyle = P.white; c.fillText(s, 0, 0); c.letterSpacing = '0px';
     c.restore();
@@ -191,7 +191,6 @@ function drawScene(t) {
     }
   } else if (t < EV.final) sceneC(t);
   else sceneD(t);
-  limeFlash(t, EV.hit, 0.35, 0.3); limeFlash(t, EV.s3, 0.3, 0.25); limeFlash(t, EV.final, 0.55, 0.35); limeFlash(t, EV.stinger, 0.14, 0.4);
 }
 window.COMP_READY = async () => {
   HOOK_S = Math.min(fitSize(HOOK[0], 940, 130), fitSize(HOOK[1], 940, 130));
