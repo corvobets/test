@@ -27,7 +27,7 @@ for FMT in ${1:-vertical horizontal}; do
   : > "$TMP/$FMT.txt"; for j in $(seq 0 $((JOBS - 1))); do echo "file '$TMP/$FMT$j.mp4'" >> "$TMP/$FMT.txt"; done
   OUT=CorvoBetsRewards_20s_$([ $FMT = vertical ] && echo Vertical || echo Horizontal).mp4
   "$FFMPEG" -y -loglevel error -f concat -safe 0 -i "$TMP/$FMT.txt" -i rewards-audio.wav \
-    -c:v libx264 -preset slow -crf 15 -maxrate 15M -bufsize 30M -pix_fmt yuv420p -profile:v high -level 4.2 \
+    -c:v libx264 -preset slow -crf 15 -maxrate 14M -bufsize 28M -pix_fmt yuv420p -profile:v high -level 4.2 \
     -r 60 -color_primaries bt709 -color_trc bt709 -colorspace bt709 \
     -c:a aac -b:a 320k -shortest -movflags +faststart "$OUT"
   ls -la "$OUT"

@@ -9,7 +9,7 @@ window.LY = {
   cash: { cx: 540, cy: 1010, s: 1 },
   lead: { x: 70, y0: 760, w: 940, rh: 124, gap: 14 },
   wheel: { cx: 540, cy: 1130, s: 0.86, jack: { x: 540, y: 520, size: 190, align: 'center', cy: 640 } },
-  give: { podiums: [[220, 1250, 380], [860, 1250, 380], [540, 1380, 520]], prizes: [['prize_iphone', 540, 1385, 470, 0], ['prize_ps5', 220, 1255, 300, 1], ['prize_gta6', 860, 1255, 310, 2]] },
+  give: { podiums: [[190, 1250, 330], [890, 1250, 330], [540, 1380, 480]], prizes: [['prize_iphone', 540, 1385, 400, 0], ['prize_ps5', 190, 1255, 280, 1], ['prize_gta6', 890, 1255, 280, 2]] },
   recap: { cx: 540, y0: 640, dy: 170, maxW: 940, size: 130 },
   close: { logo: [540, 450, 720], lines: [['JUNTA-TE À', 790], ['CORVO BETS', 920], ['REWARDS.', 1075, 1]], maxW: 940, size: [130, 170], cta: 1160, legal: 1400 },
 };
