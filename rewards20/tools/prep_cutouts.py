@@ -15,11 +15,8 @@ from rembg import remove, new_session
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 REGIONS = {                       # source file, box (x0, y0, x1, y1) in screenshot px, alpha matting
-    # the white iPhone and the PS5 sit on bright smoke and do not separate cleanly: left out
-    'phones': ('site-hero.png', (176, 330, 250, 450), False),
-    'jersey': ('site-hero.png', (128, 468, 252, 604), False),
+    # only the cap is still used (inside the wheel's prize segment); the Giveaways prizes are the supplied hi-res renders
     'cap':    ('site-hero.png', (253, 448, 357, 534), False),
-    'hoodie': ('site-loja.png', (44, 186, 126, 252), False),
 }
 sess = new_session('isnet-general-use')
 os.makedirs(os.path.join(ROOT, 'assets'), exist_ok=True)
@@ -39,7 +36,14 @@ for name, (src, box, matting) in REGIONS.items():
     print(name, cut.size)
 
 # shop thumbnails used whole (their own podium + smoke), exactly as in the reward cards
-for name, box in {'twenty': (28, 25, 142, 139), 'hoodie': (28, 180, 142, 301)}.items():
+for name, box in {'twenty': (28, 25, 142, 139)}.items():
     im = Image.open(os.path.join(ROOT, 'source', 'site-loja.png')).convert('RGB').crop(box)
     im.resize((im.width * 3, im.height * 3), Image.LANCZOS).save(os.path.join(ROOT, 'assets', f'thumb_{name}.png'))
     print('thumb', name)
+
+# high-resolution prize renders supplied for the Giveaways scene (already transparent): trimmed to their alpha
+for name in ['ps5', 'iphone', 'gta6']:
+    im = Image.open(os.path.join(ROOT, 'source', 'prizes', f'{name}.webp')).convert('RGBA')
+    bb = im.getchannel('A').point(lambda a: 255 if a > 12 else 0).getbbox()
+    im.crop(bb).save(os.path.join(ROOT, 'assets', f'prize_{name}.png'))
+    print('prize', name, im.crop(bb).size)

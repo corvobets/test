@@ -217,7 +217,7 @@ function boot() {
   window.ready = (async () => {
     await Promise.all(['900 40px Montserrat', 'italic 900 40px Montserrat', '800 40px Montserrat', '700 40px Montserrat', '600 40px Montserrat', '500 40px Montserrat', '500 40px Inter', '600 40px Inter', '700 40px Inter', '800 40px Inter'].map(f => document.fonts.load(f)));
     await CorvoLogo.load('brand/logo-paths.json');
-    await Promise.all(['cut_phones', 'cut_jersey', 'cut_cap', 'cut_hoodie', 'thumb_twenty'].map(async n => { IMG[n] = await loadImage(`assets/${n}.png`); }));
+    await Promise.all(['cut_cap', 'thumb_twenty', 'prize_ps5', 'prize_iphone', 'prize_gta6'].map(async n => { IMG[n] = await loadImage(`assets/${n}.png`); }));
     if (window.COMP_READY) await window.COMP_READY();
     return true;
   })();

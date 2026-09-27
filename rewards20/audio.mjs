@@ -1,4 +1,4 @@
-// CORVO BETS REWARDS 19.2 s — original, modern, energetic 150 BPM track + synced sound design.
+// CORVO BETS REWARDS 19.2 s (vertical + horizontal share it) — original, modern, energetic 150 BPM track + synced sound design.
 // Everything is synthesised here (no samples). Timing comes from timeline.js.
 // Usage: node audio.mjs out.wav [--stems dir] [--music licensed.wav --music-start 0 --music-gain 0]
 //   --music replaces the synthesised score with a licensed track (48 kHz 16-bit/float WAV, see build.sh);
@@ -491,7 +491,41 @@ click(EV.spin, 0.3, 0, 1500); lowHit(EV.spin + 0.01, 0.3, { len: 0.5, f0: 50 });
 }
 metal(EV.jackpot, 0.5, { f: 140 }); thud(EV.jackpot, 0.4);
 whoosh(EV.whip - 0.02, EV.give - EV.whip + 0.08, 0.3, { lo: 200, hi: 9000, pan0: -0.3, pan1: 0.3, shape: 0.85 });
-[EV.give + 0.2, EV.give + 0.4, EV.give + 0.8].forEach((t, i) => { lowHit(t + 0.28, 0.28, { len: 0.4, f0: 55 + 6 * i }); click(t + 0.28, 0.1, [-0.2, -0.5, 0.5][i], 1800); });
+// prizes land on the beats (12.4, 12.8, 13.2): thud + tap, then a bright sweep as the light crosses them
+[1, 2, 3].forEach((n, i) => { const t = EV.give + 0.4 * n; lowHit(t, 0.32, { len: 0.45, f0: 50 + 6 * i }); click(t, 0.12, [0, -0.5, 0.5][i], 1800); whoosh(t + 0.17, 0.5, 0.05, { lo: 2500, hi: 11000, pan0: -0.4, pan1: 0.4, shape: 0.5, rev: 0.1 }); });
+whoosh(EV.give - 0.02, 0.35, 0.12, { lo: 800, hi: 6000, pan0: 0, pan1: 0, shape: 0.3, rev: 0.15 });
+
+/* ---------- V2 sound design layer ---------- */
+// short air punch under every title slam
+const SLAMS = [EV.h2, EV.h3, EV.h4, EV.v1, EV.v2, EV.v3, EV.pts, EV.pts + 0.2, EV.cash + 0.02, EV.lead + 0.02, EV.lead + 0.14, EV.wheel + 0.02, EV.wheel + 0.14, EV.give + 0.02, EV.join2, EV.join2 + 0.1, EV.join2 + 0.2];
+SLAMS.forEach((t, i) => whoosh(t - 0.07, 0.14, 0.07, { lo: 1500, hi: 9000, pan0: i % 2 ? 0.3 : -0.3, pan1: 0, shape: 0.8, rev: 0.03 }));
+// camera snap on every cut: a tight reversed air into the cut
+[EV.pts, EV.cash, EV.lead, EV.wheel, EV.give, EV.recap].forEach((t, i) => whoosh(t - 0.2, 0.22, 0.14, { lo: 300, hi: 7000, pan0: i % 2 ? -0.6 : 0.6, pan1: 0, shape: 0.92, rev: 0.05 }));
+// logo "shing": bright filtered sweep + high metallic ring as the wordmark wipes in
+function shing(t0, amp = 0.12) { whoosh(t0, 0.5, amp, { lo: 3000, hi: 12000, pan0: -0.5, pan1: 0.5, shape: 0.25, rev: 0.25 }); metal(t0 + 0.02, amp * 1.6, { f: 820, pan: 0.2, verb: 0.4 }); }
+shing(EV.drop + 0.1); shing(EV.close + 0.1); shing(EV.final + 0.02, 0.09);
+// points: tiles land with a thock, CP coins pop with tiny ticks, the chart line draws with a rising sweep
+[EV.t1, EV.t2].forEach((t, i) => { lowHit(t + 0.3, 0.22, { len: 0.35, f0: 62 }); for (let k = 0; k < 5; k++) click(t + 0.27 + k * 0.035, 0.05, -0.4 + 0.2 * k, 3200 + 180 * k); });
+whoosh(EV.t2 + 0.1, EV.cash - 0.25 - EV.t2, 0.06, { lo: 400, hi: 5000, pan0: -0.7, pan1: 0.7, shape: 0.95, rev: 0.08 });
+// cashback: the card's light sweep
+whoosh(EV.cash + 0.45, 0.55, 0.05, { lo: 2500, hi: 10000, pan0: -0.6, pan1: 0.6, shape: 0.5, rev: 0.1 });
+// leaderboard: a swish on every overtake (same live-count logic as the picture)
+{
+  const LBV = [1013724, 997888, 943645, 535123, 278778], DL = [0.26, 0.05, 0.16, 0.0, 0.1], DU = [0.95, 0.75, 0.85, 0.55, 0.6];
+  const eoc = x => 1 - Math.pow(1 - x, 3), val = (i, t) => LBV[i] * eoc(clamp((t - EV.lead - 0.15 - DL[i]) / DU[i], 0, 1));
+  const order = t => LBV.map((_, i) => i).sort((a, b) => (val(b, t) + (5 - b) * 1e-3) - (val(a, t) + (5 - a) * 1e-3)).join();
+  let prev = order(EV.lead), lastT = 0;
+  for (let t = EV.lead; t < EV.lead + 1.3; t += 0.005) { const o = order(t); if (o !== prev && t - lastT > 0.06) { whoosh(t - 0.04, 0.16, 0.08, { lo: 1200, hi: 7000, pan0: 0.5, pan1: -0.2, shape: 0.5, rev: 0.03 }); click(t + 0.06, 0.06, 0.2, 2900); lastT = t; } prev = o; }
+  lowHit(EV.lead + 1.15, 0.22, { len: 0.4, f0: 58 }); metal(EV.lead + 1.15, 0.2, { f: 260, pan: -0.2 });
+}
+// jackpot sparkle: bright shimmering noise that rises and decays (no coins, no cash register)
+{
+  const n0 = Math.round(EV.jackpot * SR), n = Math.round(1.2 * SR), f = new SVF();
+  for (let i = 0; i < n; i++) { const t = i / SR; if ((i & 15) === 0) f.set(5000 + 5000 * (1 - Math.exp(-t * 3)), 2.2);
+    const x = noise() * (rnd() < 0.02 ? 6 : 1); f.run(x); const s = f.bp * 0.09 * Math.exp(-t * 2.4) * Math.min(1, t / 0.01), [l, r] = panLR(s, Math.sin(t * 17) * 0.8); put(sfx, n0 + i, l, r, 0.3); }
+}
+// recap: a light swipe under each word
+[0, 1, 2, 3].forEach(i => whoosh(EV.recap + i * BEAT + 0.04, 0.24, 0.06, { lo: 2000, hi: 9000, pan0: -0.5, pan1: 0.5, shape: 0.4, rev: 0.05 }));
 click(EV.cta, 0.28, 0, 1700); lowHit(EV.cta + 0.01, 0.35, { len: 0.6, f0: 48 });
 whoosh(EV.cta - 0.1, 0.35, 0.14, { lo: 400, hi: 7000, pan0: -0.5, pan1: 0.5, shape: 0.6 });
 

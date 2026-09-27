@@ -1,6 +1,35 @@
-# CORVO BETS REWARDS: 19,2 s vertical (Stories / Reels)
+# CORVO BETS REWARDS: 19,2 s, vertical e horizontal
 
-**Entregável:** `CorvoBetsRewards_20s_Vertical.mp4`. 1080×1920, 9:16, 60 fps, 19,2 s, H.264 High com AAC 320 kbps.
+**Entregáveis** (60 fps, 19,2 s, H.264 High com AAC 320 kbps):
+- `CorvoBetsRewards_20s_Vertical.mp4`: 1080×1920, 9:16, para Stories e Reels.
+- `CorvoBetsRewards_20s_Horizontal.mp4`: 1920×1080, 16:9.
+
+Os dois partilham a mesma narrativa, a mesma banda sonora (`timeline.js`, `audio.mjs`) e as mesmas cenas (`comp.js`). Cada formato tem o seu layout, composto de raiz:
+- `layout-vertical.js`: tipografia empilhada e visual por baixo.
+- `layout-horizontal.js`: bloco de título no terço esquerdo e visual à direita.
+
+## v2: alterações
+
+- **Giveaways:** os prémios passam a ser as imagens de alta resolução enviadas (PS5, iPhone e GTA VI), em `source/prizes/`, sem os recortes de baixa resolução do site. Cada prémio cai no seu pódio na batida (12,4, 12,8 e 13,2 s), com meia-volta 3D, holofote e um brilho que atravessa o produto.
+- **Texto:** saiu a linha "Tudo ligado às tuas apostas nas casas parceiras." da recapitulação.
+- **Formato horizontal** 1920×1080.
+- **Animação:**
+  - câmara com zoom-snap em cada corte e avanço lento em cada cena;
+  - cartões dos pontos a rodar em 3D, com contorno lima e moedas CP a saltar;
+  - gráfico com preenchimento e ponta luminosa;
+  - cartão do Cashback a flutuar, com brilho;
+  - linhas do leaderboard destacadas quando ultrapassam;
+  - luzes a correr no aro da roda (douradas no jackpot) e confettis no jackpot;
+  - sublinhado lima a cada palavra da recapitulação;
+  - seta do CTA a pulsar.
+- **Som:**
+  - swish em cada título e whip em cada corte;
+  - "shing" metálico no logótipo;
+  - pousos dos cartões, ticks das moedas e um sweep que acompanha o gráfico;
+  - um swish por cada ultrapassagem no leaderboard, calculada com a mesma lógica da imagem;
+  - brilho no jackpot (sem sons de moedas nem de caixa registadora);
+  - pousos e brilho dos prémios, e swipes da recapitulação.
+- **Qualidade:** desfoque de movimento com 5 sub-fotogramas (8 nos movimentos rápidos).
 
 ## Conceito
 
@@ -23,11 +52,11 @@ Tudo foi recomposto de raiz para 9:16 e para a identidade Corvo Bets Rewards: li
 | 5,6 | **01/04 Cashback.** O cartão real da loja ("Depósito 20€ · 40 021 CPs"), com moedas CP em profundidade. O botão RESGATAR é premido na batida (6,4 s). | "CASHBACK." · "Troca os teus pontos por depósitos." |
 | 7,2 | **02/04 Leaderboard mensal.** As cinco primeiras linhas reais de Agosto de 2026 entram em cascata. Os pontos contam a ritmos diferentes, as linhas trocam de posição em direto e assentam na ordem final real, com destaque no 1.º lugar. | "LEADERBOARD MENSAL." · "Um novo ranking todos os meses." |
 | 8,8 | **03/04 Roda da Sorte diária.** A roda do site (12 segmentos, pela mesma ordem) entra inclinada. "GIRAR" é premido às 9,2 s e o giro abranda com desfoque de rotação, com um tick por segmento. Às 11,2 s calha no **JACKPOT 10 000 CP**: explosão dourada, onda de choque e tremor de câmara. Às 11,8 s acelera e dá um zoom de chicote para o plano seguinte. | "RODA DA SORTE DIÁRIA." · "Gira todos os dias." · "JACKPOT!" · "10 000 CP" |
-| 12,0 | **04/04 Giveaways.** Os prémios reais do site (camisola, iPhones, boné), recortados, caem em pódios de luz, cada um na batida. | "GIVEAWAYS." · "Prémios reais." |
-| 13,6 | **Recapitulação**, uma palavra por tempo, como no fecho da referência. | "CASHBACK." · "LEADERBOARD." · "RODA DA SORTE." · "GIVEAWAYS." · "Tudo ligado às tuas apostas nas casas parceiras." |
+| 12,0 | **04/04 Giveaways.** O iPhone, a PS5 e o GTA VI (imagens de alta resolução) caem em pódios de luz, cada um na batida. | "GIVEAWAYS." · "Prémios reais." |
+| 13,6 | **Recapitulação**, uma palavra por tempo, como no fecho da referência. | "CASHBACK." · "LEADERBOARD." · "RODA DA SORTE." · "GIVEAWAYS." |
 | 15,2–19,2 | **Fecho.** Drop, logótipo, chamada à ação e CTA lima, completos por volta das 16,5 s e mantidos cerca de 2,7 s. O CTA pulsa na batida e o golpe final é às 18,4 s. | "JUNTA-TE À" · "CORVO BETS" · "REWARDS." · "corvobetsrewards.com" · "18+ \| Joga com responsabilidade." |
 
-**Zonas seguras.** O texto essencial, o logótipo e o CTA ficam entre y ≈ 280 e 1460 e entre x ≈ 70 e 1000. Assim ficam fora das barras do topo, da legenda e do nome em baixo, e da coluna de botões à direita. O vídeo funciona sem som: todo o conteúdo está em texto.
+**Zonas seguras.** Na vertical, o texto essencial, o logótipo e o CTA ficam entre y ≈ 280 e 1460 e entre x ≈ 70 e 1000. Na horizontal, ficam entre x ≈ 110 e 1810 e entre y ≈ 90 e 990. Assim ficam fora das barras do topo, da legenda e do nome em baixo, e da coluna de botões à direita. O vídeo funciona sem som: todo o conteúdo está em texto.
 
 ## Materiais e valores (nada inventado)
 
@@ -37,7 +66,8 @@ Tudo foi recomposto de raiz para 9:16 e para a identidade Corvo Bets Rewards: li
   - leaderboard "Encerrado · Agosto de 2026", com os cinco primeiros, pontos e prémios;
   - segmentos da roda.
 - **Leaderboard:** os avatares com fotografia foram substituídos pelo ícone genérico do site, por privacidade.
-- **Recortes de produto** (`tools/prep_cutouts.py`, rembg): camisola, iPhones e boné da imagem principal, e a miniatura "20€" da loja, usada inteira. O iPhone branco e a PS5 ficaram de fora porque não se separam limpos do fumo claro.
+- **Recortes de produto** (`tools/prep_cutouts.py`): o boné (no segmento de prémio da roda) e a miniatura "20€" da loja, usada inteira.
+- **Prémios dos Giveaways:** as imagens fornecidas, já com fundo transparente, aparadas ao contorno.
 - **Cashback:** o site não mostra percentagens. O benefício é apresentado com o cartão real de troca de pontos por depósito.
 - **Sem promessas:** não há percentagens nem condições inventadas, nem ganhos garantidos. O jackpot da roda é uma dramatização pedida, sem promessa de resultado.
 
@@ -57,12 +87,14 @@ Tudo foi recomposto de raiz para 9:16 e para a identidade Corvo Bets Rewards: li
 ## Editar e reconstruir
 
 - **`timeline.js`:** todos os tempos, partilhados pela imagem e pelo som.
-- **`comp-vertical.js`:** cenas, layout e texto.
+- **`comp.js`:** cenas e texto, partilhados pelos dois formatos.
+- **`layout-vertical.js` e `layout-horizontal.js`:** posições e tamanhos de cada formato.
 - **`engine.js`:** palco, logótipo, tremor e ciclo de render.
-- **Pré-visualização ao vivo:** abre `vertical.html` num servidor local e clica para tocar com som. Acrescenta `?t=11.3` para parar num fotograma.
+- **Pré-visualização ao vivo:** abre `vertical.html` ou `horizontal.html` num servidor local e clica para tocar com som. Acrescenta `?t=11.3` para parar num fotograma.
 
 ```bash
-FFMPEG=/path/to/ffmpeg ./build.sh                 # build completo (~15 min em 4 núcleos)
+FFMPEG=/path/to/ffmpeg ./build.sh                 # os dois formatos (~15 min cada em 4 núcleos)
+FFMPEG=/path/to/ffmpeg ./build.sh horizontal      # só um formato
 ./build.sh audio                                  # só a banda sonora
 SUB=1 node render.mjs vertical.html stills ./stills 1.9,7.9,11.3,17.0
 python3 tools/prep_cutouts.py                     # refaz os recortes (rembg, pillow, scipy)
