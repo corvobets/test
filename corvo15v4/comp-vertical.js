@@ -97,9 +97,9 @@ const CARD_END = { cx: 540, cy: 975, s: 0.9 };
 const CENTER = [(SUM.card[0] + SUM.card[2]) / 2, (SUM.card[1] + SUM.card[3]) / 2];
 const mid = b => [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];
 const FOCUS = [
-  [EV.reveal + 0.75, 1, CENTER], [EV.ganho - 0.05, 1.1, mid(SUM.badge)], [EV.ganho + 0.3, 1.1, mid(SUM.badge)],
-  [EV.bars + 0.1, 1.02, CENTER], [EV.ret - 0.3, 1.02, CENTER], [EV.ret - 0.02, 1.15, mid(SUM.ret)], [EV.ret + 0.3, 1.15, mid(SUM.ret)],
-  [EV.odds - 0.02, 1.13, mid(SUM.odds)], [EV.odds + 0.35, 1.13, mid(SUM.odds)], [EV.odds + 0.8, 1, CENTER],
+  [EV.reveal + 0.75, 1, CENTER], [EV.ganho - 0.02, 1.07, mid(SUM.badge)], [EV.ganho + 0.3, 1.07, mid(SUM.badge)],
+  [EV.bars + 0.25, 1, CENTER], [EV.ret - 0.4, 1, CENTER], [EV.ret - 0.02, 1.09, mid(SUM.ret)], [EV.ret + 0.2, 1.09, mid(SUM.ret)],
+  [EV.odds - 0.06, 1, CENTER],
 ];
 function focusAt(t) {
   const k = kf(t, FOCUS.map(([tt, z, f]) => [tt, { z, fx: f[0], fy: f[1] }]), eInOutCubic);
@@ -116,9 +116,9 @@ function cardState(t, ph) {
   let cx = lerp(ax, up.cx, e), cy = lerp(ay, up.cy, e), s = lerp(s0, up.s, es);
   // controlled camera: zoom about the focused element (the element stays put, the card grows around it)
   const fo = focusAt(t);
-  if (fo.z !== 1) {
+  {
     const px = cx + (fo.fx - CENTER[0]) * s, py = cy + (fo.fy - CENTER[1]) * s;
-    const tx = lerp(px, CX, 0.35), ty = py;                  // drift the focus slightly toward the centre
+    const tx = lerp(px, CX, 0.35 * clamp((fo.z - 1) / 0.08)), ty = py;   // drift the focus slightly toward the centre (continuous at z = 1)
     cx = tx + (cx - px) * fo.z; cy = ty + (cy - py) * fo.z; s *= fo.z;
   }
   cx = lerp(cx, CARD_END.cx, f); cy = lerp(cy, CARD_END.cy, f); s = lerp(s, CARD_END.s, f);
@@ -215,7 +215,7 @@ function drawScene(t) {
   if (t >= EV.final) finalType(t);
 }
 // extra motion-blur sub-frames where things move fast
-window.SUB_AT = t => (t > EV.top && t < EV.topEnd + 0.05) ? 12 : (t > EV.reveal && t < EV.reveal + 0.4) || (t > EV.s2 && t < EV.s2 + 0.5) || t < 0.3 || (t > EV.num && t < EV.num + 0.25) ? 8 : 1;
+window.SUB_AT = t => (t > EV.top && t < EV.topEnd + 0.05) ? 12 : (t > EV.reveal && t < EV.reveal + 0.4) || (t > EV.ganho - 0.35 && t < EV.ganho) || (t > EV.ganho + 0.3 && t < EV.bars + 0.25) || (t > EV.ret - 0.4 && t < EV.ret) || (t > EV.ret + 0.2 && t < EV.odds) || (t > EV.s2 && t < EV.s2 + 0.5) || t < 0.3 || (t > EV.num && t < EV.num + 0.25) ? 8 : 1;
 window.COMP_READY = async () => {
   S25 = 170;
   SNUM = fitSize('2 110,75 €', 950, 210);
