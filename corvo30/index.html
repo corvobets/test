@@ -561,7 +561,7 @@ function sceneA(t) {
     c.save(); c.globalAlpha = clamp(lp * 3);
     logoLockupToAvatar(t, s);
     c.restore();
-    logoShine(W / 2, LOGO1_Y, 1100, prog(t, EV.logo1 + 0.3, EV.logo1 + 1.0) * (1 - out1));
+    if (t < EV.out1 - 0.02) logoShine(W / 2, LOGO1_Y, 1100, prog(t, EV.logo1 + 0.25, EV.out1 - 0.02));
   }
   // un-revealed area (ahead of the wing) + a light seam along the wipe
   if (wp < 1) {
@@ -814,7 +814,7 @@ function sceneD(t) {
     }
     // impact flash
     const fl = 1 - prog(t, EV.drop, EV.drop + 0.25);
-    if (fl > 0 && t >= EV.drop) { c.fillStyle = `rgba(230,255,200,${0.55 * fl * fl})`; c.fillRect(0, 0, W, H); }
+    if (fl > 0 && t >= EV.drop) { c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = `rgba(150,190,40,${0.5 * fl * fl})`; c.fillRect(0, 0, W, H); c.restore(); }
     const dk = eInCubic(prog(t, EV.juntanos - 0.12, EV.juntanos));
     if (dk > 0) { c.fillStyle = `rgba(5,5,10,${dk})`; c.fillRect(0, 0, W, H); }
     return;

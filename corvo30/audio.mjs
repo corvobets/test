@@ -650,7 +650,7 @@ function master(gainDb) {
   // gentle soft clip before the limiter (adds density, catches transients)
   for (let i = 0; i < N; i++) { L[i] = Math.tanh(L[i] * 0.9) / 0.9; R[i] = Math.tanh(R[i] * 0.9) / 0.9; }
   const lp1 = bq('lp', 18500, 0.54), lp2 = bq('lp', 18500, 1.31); filt(L, lp1); filt(L, lp2); filt(R, lp1); filt(R, lp2);
-  limiter(L, R, -1.4);
+  limiter(L, R, -2.3);
   // fades
   const fi = Math.round(0.004 * SR), fo = Math.round(0.35 * SR);
   for (let i = 0; i < fi; i++) { L[i] *= i / fi; R[i] *= i / fi; }

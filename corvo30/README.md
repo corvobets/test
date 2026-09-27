@@ -69,7 +69,7 @@ The soundtrack is original and synthesised entirely in code, so it needs no lice
 - **Master**
   - Bus compression and kick sidechain.
   - An 18 kHz ultrasonic clean-up and a **true-peak** limiter.
-  - About −11 LUFS integrated, true peak ≤ −1.4 dBTP. The drop is the loudest section, and there is no clipping.
+  - About −11.4 LUFS integrated. The limiter ceiling is −2.3 dBTP, which leaves headroom for AAC, so the delivered MP4 stays at or below −1 dBTP. The drop is the loudest section, there is a real silence before the final hit, and there is no clipping.
 
 ## Editing and rebuilding
 
